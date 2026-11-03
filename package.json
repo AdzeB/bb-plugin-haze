@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-haze",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "MonoCode-style conversation background: your image as a soft haze at the top of every thread that dissolves before the text.",
   "license": "MIT",
@@ -10,7 +10,7 @@
   },
   "bb": {
     "name": "Haze",
-    "description": "A MonoCode-style background haze for New thread and conversations.",
+    "description": "A MonoCode-style chat background and translucent window.",
     "branding": {
       "icon": "Image"
     },

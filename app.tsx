@@ -1,19 +1,36 @@
-// Haze frontend. All drawing is CSS (app.css); this file only puts the saved
-// background on <html> and renders the settings page.
+// Haze frontend. All drawing is CSS (app.css); this file puts the active
+// background on <html>, runs the pixel effects, and renders the settings page.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   definePluginApp,
+  useBbContext,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
 } from "@get-bb/plugin-sdk/app";
-import type { HazeSettings, rpcContract, Snapshot } from "./server";
+import type { rpcContract } from "./server";
+import {
+  activeBackground,
+  BLUR,
+  EFFECT_DESCRIPTIONS,
+  EFFECT_LABELS,
+  EFFECTS,
+  OPACITY,
+  SIDEBAR_OPACITY,
+  type Background,
+  type BackgroundSettings,
+  type Effect,
+  type Glass,
+  type Snapshot,
+} from "./lib/model";
+import { disposeEffects, needsWorker, renderEffect } from "./lib/effects";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import "./app.css";
 
 const MAX_EDGE = 2560;
+const GLOBAL = "global";
 
 function useSnapshot() {
   const rpc = useRpc<typeof rpcContract>();
@@ -32,29 +49,104 @@ function useSnapshot() {
   return { rpc, snapshot, setSnapshot, error, setError };
 }
 
-const VARS = ["--haze-image", "--haze-empty-opacity", "--haze-session-opacity"];
+/** Follows BB's theme, which the pixel effects use to pick black or white paper. */
+function useLightTheme(): boolean {
+  const read = () => !document.documentElement.classList.contains("dark");
+  const [light, setLight] = useState(read);
+  useEffect(() => {
+    const observer = new MutationObserver(() => setLight(read()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  return light;
+}
 
-function paint(snapshot: Snapshot | null): void {
+/**
+ * The image to draw for `effect`: the original, or the worker's version once
+ * it is ready. Null until then, so the original never flashes first.
+ */
+function useEffectImage(url: string | null, effect: Effect): string | null {
+  const light = useLightTheme();
+  const worker = Boolean(url) && needsWorker(effect);
+  const [rendered, setRendered] = useState<{ key: string; url: string } | null>(null);
+  const key = `${url}|${effect}|${light}`;
+  useEffect(() => {
+    if (!url || !worker) return;
+    let live = true;
+    renderEffect(url, effect, light).then(
+      (result) => live && setRendered({ key, url: result }),
+      () => live && setRendered({ key, url }), // fall back to the original
+    );
+    return () => {
+      live = false;
+    };
+  }, [url, effect, light, worker, key]);
+  if (!url) return null;
+  if (!worker) return url;
+  return rendered?.key === key ? rendered.url : null;
+}
+
+/** The CSS variables and attribute one background needs, on <html> or a preview. */
+function backgroundStyle(settings: BackgroundSettings, image: string) {
+  return {
+    mode: settings.effect === "gradient-blur" ? "haze" : "plain",
+    vars: {
+      "--haze-image": `url("${image}")`,
+      "--haze-empty-opacity": String(settings.emptyOpacity),
+      "--haze-session-opacity": String(settings.scope === "empty" ? 0 : settings.sessionOpacity),
+    },
+  };
+}
+
+const VARS = [
+  "--haze-image",
+  "--haze-empty-opacity",
+  "--haze-session-opacity",
+  "--haze-window-image",
+  "--haze-sidebar-opacity",
+  "--haze-glass-blur",
+];
+
+function paint(background: Background, image: string | null, glass: Glass | null): void {
   const root = document.documentElement;
-  if (!snapshot?.imageUrl) return unpaint();
-  const { effect, emptyOpacity, sessionOpacity, scope } = snapshot.settings;
-  root.dataset.haze = effect;
-  root.style.setProperty("--haze-image", `url("${snapshot.imageUrl}")`);
-  root.style.setProperty("--haze-empty-opacity", String(emptyOpacity));
-  root.style.setProperty("--haze-session-opacity", String(scope === "empty" ? 0 : sessionOpacity));
+  if (!background.imageUrl || !image) return unpaint();
+  const { mode, vars } = backgroundStyle(background.settings, image);
+  root.dataset.haze = mode;
+  for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
+  if (glass?.enabled) {
+    root.dataset.hazeGlass = glass.body ? "body" : "sidebar";
+    // The window shows the original artwork, like the desktop behind MonoCode.
+    root.style.setProperty("--haze-window-image", `url("${background.imageUrl}")`);
+    root.style.setProperty("--haze-sidebar-opacity", String(glass.sidebarOpacity));
+    root.style.setProperty("--haze-glass-blur", `${glass.blur}px`);
+  } else {
+    delete root.dataset.hazeGlass;
+  }
 }
 
 function unpaint(): void {
   const root = document.documentElement;
   delete root.dataset.haze;
+  delete root.dataset.hazeGlass;
   for (const name of VARS) root.style.removeProperty(name);
 }
 
-/** Mounted once per window; keeps <html> in sync with the saved background. */
+/** Mounted once per window; keeps <html> in sync with the focused project's background. */
 function HazeRoot() {
   const { snapshot } = useSnapshot();
-  useEffect(() => paint(snapshot), [snapshot]);
-  useEffect(() => unpaint, []);
+  const { projectId } = useBbContext();
+  const background = snapshot ? activeBackground(snapshot, projectId) : null;
+  const image = useEffectImage(background?.imageUrl ?? null, background?.settings.effect ?? "none");
+  useEffect(() => {
+    if (snapshot && background) paint(background, image, snapshot.glass);
+  }, [snapshot, background, image]);
+  useEffect(
+    () => () => {
+      unpaint();
+      disposeEffects();
+    },
+    [],
+  );
   return null;
 }
 
@@ -70,6 +162,18 @@ async function toDataUrl(file: File): Promise<string> {
   return canvas.toDataURL("image/webp", 0.9);
 }
 
+function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="flex flex-col text-sm">
+        {label}
+        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      </span>
+      {children}
+    </div>
+  );
+}
+
 function Segmented<T extends string>({
   label,
   value,
@@ -82,8 +186,7 @@ function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-sm">{label}</span>
+    <Row label={label}>
       <div role="group" aria-label={label} className="flex gap-1 rounded-lg border border-border p-0.5">
         {options.map(([option, text]) => (
           <Button
@@ -97,19 +200,54 @@ function Segmented<T extends string>({
           </Button>
         ))}
       </div>
-    </div>
+    </Row>
   );
 }
 
-function Strength({
+function Select<T extends string>({
+  label,
+  hint,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: T;
+  options: [T, string][];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <Row label={label} hint={hint}>
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+      >
+        {options.map(([option, text]) => (
+          <option key={option} value={option}>
+            {text}
+          </option>
+        ))}
+      </select>
+    </Row>
+  );
+}
+
+function Slider({
   label,
   value,
+  range,
+  format,
   disabled,
   onInput,
   onCommit,
 }: {
   label: string;
   value: number;
+  range: { min: number; max: number };
+  format: (value: number) => string;
   disabled?: boolean;
   onInput: (value: number) => void;
   onCommit: () => void;
@@ -120,9 +258,9 @@ function Strength({
       <span className="flex items-center gap-3">
         <input
           type="range"
-          min={0}
-          max={1}
-          step={0.01}
+          min={range.min}
+          max={range.max}
+          step={range.max > 1 ? 1 : 0.01}
           value={value}
           disabled={disabled}
           className="w-40 accent-foreground"
@@ -130,84 +268,51 @@ function Strength({
           onPointerUp={onCommit}
           onKeyUp={onCommit}
         />
-        <output className="w-9 text-right tabular-nums text-muted-foreground">
-          {Math.round(value * 100)}%
-        </output>
+        <output className="w-10 text-right tabular-nums text-muted-foreground">{format(value)}</output>
       </span>
     </label>
   );
 }
 
-function Pane({ kind, title, children }: { kind: "empty" | "session"; title: string; children: ReactNode }) {
+const percent = (value: number) => `${Math.round(value * 100)}%`;
+
+function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <figure className="m-0 flex flex-1 flex-col gap-1.5">
-      <div data-kind={kind} className="haze-pane relative aspect-[16/11] rounded-lg border border-border">
-        {children}
-      </div>
-      <figcaption className="text-xs text-muted-foreground">{title}</figcaption>
-    </figure>
+    <Row label={label} hint={hint}>
+      <input
+        type="checkbox"
+        role="switch"
+        aria-label={label}
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="size-4 accent-foreground"
+      />
+    </Row>
   );
 }
 
 const bar = "h-1.5 rounded-full bg-muted-foreground/30";
 const composer = "rounded-md border border-border bg-background h-7";
 
-function HazeSettingsPage() {
-  const { rpc, snapshot, setSnapshot, error, setError } = useSnapshot();
-  const [draft, setDraft] = useState<HazeSettings | null>(null);
-  const [busy, setBusy] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const settings = draft ?? snapshot?.settings ?? null;
-
-  function run(call: Promise<Snapshot>) {
-    setBusy(true);
-    setError(null);
-    call.then(
-      (next) => {
-        setSnapshot(next);
-        setDraft(null);
-      },
-      (cause) => setError(cause instanceof Error ? cause.message : String(cause)),
-    ).finally(() => setBusy(false));
-  }
-  const save = (patch: Partial<HazeSettings>) => run(rpc.call("set", patch));
-  // Sliders repaint this window while dragging and save on release.
-  function input(key: "emptyOpacity" | "sessionOpacity", value: number) {
-    if (!snapshot || !settings) return;
-    const next = { ...settings, [key]: value };
-    setDraft(next);
-    paint({ ...snapshot, settings: next });
-  }
-  async function choose(file: File | undefined) {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return setError("Choose an image file.");
-    try {
-      run(rpc.call("setImage", { dataUrl: await toDataUrl(file) }));
-    } catch {
-      setError("That image could not be read.");
-    }
-  }
-
-  if (!settings || !snapshot) {
-    return <p className="text-sm text-muted-foreground">{error ?? "Loading…"}</p>;
-  }
-  const hasImage = snapshot.imageUrl !== null;
+function Previews({ settings, imageUrl }: { settings: BackgroundSettings; imageUrl: string | null }) {
+  const image = useEffectImage(imageUrl, settings.effect);
+  const style = image ? backgroundStyle(settings, image) : null;
   return (
-    <div className="flex max-w-2xl flex-col gap-5">
-      <div
-        className="flex gap-3"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          event.preventDefault();
-          void choose(event.dataTransfer.files[0]);
-        }}
-      >
-        <Pane kind="empty" title="New thread">
+    <div
+      className="haze-preview flex gap-3"
+      data-haze={style?.mode}
+      style={style?.vars as CSSProperties | undefined}
+    >
+      <figure className="m-0 flex flex-1 flex-col gap-1.5">
+        <div data-kind="empty" className="haze-pane relative aspect-[16/11] rounded-lg border border-border">
           <div className="absolute inset-x-[14%] top-[44%]">
             <div className={cn(composer, "h-9")} />
           </div>
-        </Pane>
-        <Pane kind="session" title="Conversation">
+        </div>
+        <figcaption className="text-xs text-muted-foreground">New thread</figcaption>
+      </figure>
+      <figure className="m-0 flex flex-1 flex-col gap-1.5">
+        <div data-kind="session" className="haze-pane relative aspect-[16/11] rounded-lg border border-border">
           <div className="absolute inset-x-[14%] top-[18%] flex flex-col gap-2">
             <div className={cn(bar, "ml-auto w-2/5")} />
             <div className={cn(bar, "w-11/12")} />
@@ -215,25 +320,86 @@ function HazeSettingsPage() {
             <div className={cn(bar, "w-3/5")} />
           </div>
           <div className={cn(composer, "absolute inset-x-[14%] bottom-[8%]")} />
-        </Pane>
-      </div>
+        </div>
+        <figcaption className="text-xs text-muted-foreground">Conversation</figcaption>
+      </figure>
+    </div>
+  );
+}
 
+type Rpc = ReturnType<typeof useSnapshot>["rpc"];
+
+/** Image, effect, scope and visibility for the global background or one project's. */
+function BackgroundEditor({
+  target,
+  background,
+  fallback,
+  busy,
+  rpc,
+  run,
+  onError,
+}: {
+  target: string;
+  background: Background | undefined;
+  fallback: BackgroundSettings;
+  busy: boolean;
+  rpc: Rpc;
+  run: (call: Promise<Snapshot>) => void;
+  onError: (message: string) => void;
+}) {
+  const saved = background?.settings ?? fallback;
+  const [draft, setDraft] = useState<BackgroundSettings | null>(null);
+  const settings = draft ?? saved;
+  const fileInput = useRef<HTMLInputElement>(null);
+  const hasImage = Boolean(background?.imageUrl);
+  const isGlobal = target === GLOBAL;
+  useEffect(() => setDraft(null), [target, background]);
+
+  const save = (patch: Partial<BackgroundSettings>) => run(rpc.call("set", { target, patch }));
+  async function choose(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return onError("Choose an image file.");
+    try {
+      run(rpc.call("setImage", { target, dataUrl: await toDataUrl(file) }));
+    } catch {
+      onError("That image could not be read.");
+    }
+  }
+  const slide = (key: "emptyOpacity" | "sessionOpacity") => ({
+    value: settings[key],
+    range: OPACITY,
+    format: percent,
+    onInput: (value: number) => setDraft({ ...settings, [key]: value }),
+    onCommit: () => draft && save({ [key]: draft[key] }),
+  });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          void choose(event.dataTransfer.files[0]);
+        }}
+      >
+        <Previews settings={settings} imageUrl={background?.imageUrl ?? null} />
+      </div>
       <div className="flex items-center gap-2">
         <Button size="sm" variant="outline" disabled={busy} onClick={() => fileInput.current?.click()}>
           {hasImage ? "Replace image" : "Choose image"}
         </Button>
         {hasImage && (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(rpc.call("setImage", { dataUrl: null }))}>
-            Remove
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(rpc.call("setImage", { target, dataUrl: null }))}>
+            {isGlobal ? "Remove" : "Remove project background"}
           </Button>
         )}
         <span className="text-xs text-muted-foreground">
-          {busy ? "Saving…" : hasImage ? "Drop an image on the previews to replace it." : "Choose or drop an image to turn Haze on."}
+          {busy ? "Saving…" : hasImage ? "Drop an image on the previews to replace it." : isGlobal ? "Choose or drop an image to turn the background on." : "This project uses the global background."}
         </span>
         <input
           ref={fileInput}
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/gif,image/webp"
           hidden
           onChange={(event) => {
             void choose(event.target.files?.[0]);
@@ -241,35 +407,140 @@ function HazeSettingsPage() {
           }}
         />
       </div>
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-
       <fieldset disabled={busy || !hasImage} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-60">
-        <Segmented
+        <Select
           label="Effect"
+          hint={EFFECT_DESCRIPTIONS[settings.effect]}
           value={settings.effect}
-          options={[["haze", "Haze"], ["plain", "Plain"]]}
+          options={EFFECTS.map((effect) => [effect, EFFECT_LABELS[effect]])}
           onChange={(effect) => save({ effect })}
         />
         <Segmented
           label="Show on"
           value={settings.scope}
-          options={[["all", "Everywhere"], ["empty", "New thread only"]]}
+          options={[["all", "All sessions"], ["empty", "Empty chats"]]}
           onChange={(scope) => save({ scope })}
         />
-        <Strength
-          label="New thread strength"
-          value={settings.emptyOpacity}
-          onInput={(value) => input("emptyOpacity", value)}
-          onCommit={() => draft && save({ emptyOpacity: draft.emptyOpacity })}
+        <Slider label="Empty chat visibility" {...slide("emptyOpacity")} />
+        <Slider label="Session visibility" disabled={settings.scope === "empty"} {...slide("sessionOpacity")} />
+      </fieldset>
+    </div>
+  );
+}
+
+function GlassEditor({ glass, busy, rpc, run }: { glass: Glass; busy: boolean; rpc: Rpc; run: (call: Promise<Snapshot>) => void }) {
+  const [draft, setDraft] = useState<Glass | null>(null);
+  const value = draft ?? glass;
+  useEffect(() => setDraft(null), [glass]);
+  const save = (patch: Partial<Glass>) => run(rpc.call("setGlass", patch));
+  return (
+    <fieldset disabled={busy} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-60">
+      <Toggle
+        label="Window glass"
+        hint="Draws the background across the whole window, behind the sidebar and every pane. Dark theme only, as in MonoCode."
+        checked={value.enabled}
+        onChange={(enabled) => save({ enabled })}
+      />
+      <fieldset disabled={!value.enabled} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-50">
+        <Slider
+          label="Sidebar opacity"
+          value={value.sidebarOpacity}
+          range={SIDEBAR_OPACITY}
+          format={percent}
+          onInput={(sidebarOpacity) => setDraft({ ...value, sidebarOpacity })}
+          onCommit={() => draft && save({ sidebarOpacity: draft.sidebarOpacity })}
         />
-        <Strength
-          label="Conversation strength"
-          value={settings.sessionOpacity}
-          disabled={settings.scope === "empty"}
-          onInput={(value) => input("sessionOpacity", value)}
-          onCommit={() => draft && save({ sessionOpacity: draft.sessionOpacity })}
+        <Slider
+          label="Blur radius"
+          value={value.blur}
+          range={BLUR}
+          format={(px) => `${px}px`}
+          onInput={(blur) => setDraft({ ...value, blur })}
+          onCommit={() => draft && save({ blur: draft.blur })}
+        />
+        <Toggle
+          label="Main pane glass"
+          hint="Lets the window show through the conversation area too."
+          checked={value.body}
+          onChange={(body) => save({ body })}
         />
       </fieldset>
+    </fieldset>
+  );
+}
+
+function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <header>
+        <h3 className="text-sm font-medium">{title}</h3>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function HazeSettingsPage() {
+  const { rpc, snapshot, setSnapshot, error, setError } = useSnapshot();
+  const [busy, setBusy] = useState(false);
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const context = useBbContext();
+  useEffect(() => {
+    rpc.call("projects", null).then((list) => {
+      setProjects(list);
+      setProjectId((current) => current || (context.projectId && list.some((p) => p.id === context.projectId) ? context.projectId : list[0]?.id ?? ""));
+    }, () => {});
+  }, [rpc, context.projectId]);
+
+  function run(call: Promise<Snapshot>) {
+    setBusy(true);
+    setError(null);
+    call
+      .then(setSnapshot, (cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+      .finally(() => setBusy(false));
+  }
+
+  if (!snapshot) return <p className="text-sm text-muted-foreground">{error ?? "Loading…"}</p>;
+  const editor = { busy, rpc, run, onError: setError };
+  return (
+    <div className="flex max-w-2xl flex-col gap-8">
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <Section title="Chat background" description="Your image at the top of New thread and every conversation, fading out before the text.">
+        <BackgroundEditor target={GLOBAL} background={snapshot.global} fallback={snapshot.global.settings} {...editor} />
+      </Section>
+
+      <Section title="Window" description="MonoCode's translucent window, with your background in place of the desktop.">
+        <GlassEditor glass={snapshot.glass} busy={busy} rpc={rpc} run={run} />
+      </Section>
+
+      {projects.length > 0 && (
+        <Section title="Project backgrounds" description="Give a project its own image and settings. Projects without one use the chat background.">
+          <Select
+            label="Project"
+            value={projectId}
+            options={projects.map((p) => [p.id, snapshot.projects[p.id]?.imageUrl ? `${p.name} (custom)` : p.name])}
+            onChange={setProjectId}
+          />
+          {projectId && (
+            <BackgroundEditor
+              key={projectId}
+              target={projectId}
+              background={snapshot.projects[projectId]}
+              fallback={snapshot.global.settings}
+              {...editor}
+            />
+          )}
+        </Section>
+      )}
+
+      <div>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => run(rpc.call("reset", null))}>
+          Reset to defaults
+        </Button>
+        <p className="mt-1 text-xs text-muted-foreground">Clears the chat background image and window settings. Project backgrounds stay.</p>
+      </div>
     </div>
   );
 }
@@ -279,7 +550,7 @@ export default definePluginApp((app) => {
   app.slots.settingsSection({
     id: "background",
     title: "Background",
-    description: "Your image as a soft haze at the top of New thread and every conversation, fading out before the text.",
+    description: "A MonoCode-style chat background and translucent window.",
     component: HazeSettingsPage,
   });
 });
