@@ -17,7 +17,7 @@ Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
   visibility for empty chats and sessions (5–65%, default 24%). These are
   MonoCode's names, ranges and defaults.
 - **Window:** window glass, sidebar opacity (default 85%), blur radius (default
-  24 px) and main pane glass (the workspace at 40%). Dark theme only, as in MonoCode.
+  24 px) and main pane glass (the workspace at 40%).
 - **Project backgrounds:** a project can have its own image and settings. Panes
   in the focused project use it; other projects use the chat background.
 - **Reset to defaults.**

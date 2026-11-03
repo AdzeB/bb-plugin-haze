@@ -143,17 +143,18 @@ html[data-haze] #thread-detail-timeline-panel [data-scroll-attached] {
 
 /*
  * Window glass. MonoCode's window is native glass over the desktop; here the
- * desktop is your image, blurred, behind the whole app. As in MonoCode it is
- * dark theme only: the sidebar sits at --haze-sidebar-opacity and, with main
- * pane glass, the workspace at 40% (MonoCode's --window-background-opacity).
+ * desktop is your image, blurred, behind the whole app. MonoCode limits it to
+ * dark; Haze draws it in light too so the image always fills the window. The
+ * sidebar sits at --haze-sidebar-opacity and, with main pane glass, the
+ * workspace at 40% (MonoCode's --window-background-opacity).
  */
-html.dark[data-haze-glass] {
+html[data-haze-glass] {
   background: var(--background);
 }
-html.dark[data-haze-glass] body {
+html[data-haze-glass] body {
   background: transparent;
 }
-html.dark[data-haze-glass] body::before {
+html[data-haze-glass] body::before {
   content: "";
   position: fixed;
   /* Overscan so the blur has no soft edge. */
@@ -165,19 +166,37 @@ html.dark[data-haze-glass] body::before {
 }
 /* The sidebar's list paints its own fill; clear it so the list, the top bar
    and the footer share one glass instead of three different backgrounds. */
-html.dark[data-haze-glass] :is([data-sidebar="panel"], [data-sidebar="content"]) {
+html[data-haze-glass] :is([data-sidebar="panel"], [data-sidebar="content"]) {
   background: transparent;
 }
-html.dark[data-haze-glass] [data-sidebar="sidebar"] {
+html[data-haze-glass] [data-sidebar="sidebar"] {
   background: color-mix(in oklab, var(--sidebar) calc(var(--haze-sidebar-opacity, 0.85) * 100%), transparent);
   transition: background-color 120ms var(--haze-ease);
 }
-html.dark[data-haze-glass="body"] main[data-sidebar="inset"] {
+html[data-haze-glass="body"] main[data-sidebar="inset"] {
   background: color-mix(in oklab, var(--background) 40%, transparent);
 }
-/* The composer's sticky band fades in over the glass instead of starting at a hard edge. */
-html.dark[data-haze-glass="body"] [data-scroll-footer] > .bg-background {
-  background: linear-gradient(to bottom, transparent, color-mix(in oklab, var(--background) 92%, transparent) 3rem);
+/*
+ * The composer's sticky band: frosted glass instead of a solid block, so the
+ * image runs to the bottom of the window while messages scrolling under the
+ * composer blur away. The frost lives on ::before so its fade-in mask leaves
+ * the cards inside the band untouched.
+ */
+html[data-haze-glass="body"] [data-scroll-footer] > .bg-background {
+  background: transparent;
+  isolation: isolate;
+}
+html[data-haze-glass="body"] [data-scroll-footer] > .bg-background::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--background) 30%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 2.5rem);
+  mask-image: linear-gradient(to bottom, transparent, #000 2.5rem);
 }
 
 /* Settings preview panes. */

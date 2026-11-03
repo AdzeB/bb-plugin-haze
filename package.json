@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-haze",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MonoCode-style conversation background: your image as a soft haze at the top of every thread that dissolves before the text.",
   "author": "AdzeB (https://github.com/AdzeB)",
   "license": "MIT",

@@ -437,7 +437,7 @@ function GlassEditor({ glass, busy, rpc, run }: { glass: Glass; busy: boolean; r
     <fieldset disabled={busy} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-60">
       <Toggle
         label="Window glass"
-        hint="Draws the background across the whole window, behind the sidebar and every pane. Dark theme only, as in MonoCode."
+        hint="Draws the background across the whole window, behind the sidebar and every pane."
         checked={value.enabled}
         onChange={(enabled) => save({ enabled })}
       />
