@@ -163,7 +163,9 @@ html.dark[data-haze-glass] body::before {
   background: var(--haze-window-image) center / cover no-repeat;
   filter: blur(var(--haze-glass-blur, 24px));
 }
-html.dark[data-haze-glass] [data-sidebar="panel"] {
+/* The sidebar's list paints its own fill; clear it so the list, the top bar
+   and the footer share one glass instead of three different backgrounds. */
+html.dark[data-haze-glass] :is([data-sidebar="panel"], [data-sidebar="content"]) {
   background: transparent;
 }
 html.dark[data-haze-glass] [data-sidebar="sidebar"] {
