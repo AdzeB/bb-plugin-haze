@@ -5,6 +5,11 @@ a soft haze at the top of New thread and every conversation and fades into the
 theme colour before it reaches the text. With window glass on, the same image,
 blurred, sits behind the whole window the way the desktop shows through MonoCode.
 
+Haze ports the look of [MonoCode](https://github.com/hardbeat920/monocode) to BB.
+It was inspired by [Aura](https://github.com/MateoCerquetella/bb-plugins/tree/HEAD/plugins/aura)
+and replaces it. It needs no account or network service: images stay in BB's
+local plugin database.
+
 Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
 
 - **Chat background:** image, **Effect** (None, Dither, ASCII, Halftone,
@@ -37,7 +42,23 @@ The CSS depends on BB's DOM: those two panel ids, `[data-sidebar=…]`,
 `[data-page-scroll-viewport]`, `[data-scroll-attached]`, `[data-scroll-footer]`
 and the thread header. Recheck them after a BB upgrade.
 
+## Install
+
+```sh
+bb plugin install https://github.com/AdzeB/bb-plugin-haze
+```
+
+From a checkout:
+
 ```sh
 npm install --include=dev
+npm run typecheck
 bb plugin build . && bb plugin install . --yes
 ```
+
+## License and credits
+
+MIT, see [LICENSE](LICENSE). The pixel effects (`lib/effects.ts`), the fade
+masks in `app.css`, and the effect names, ranges and defaults are adapted from
+MonoCode (MIT, Copyright (c) 2026 Nick); its notice is in [NOTICE](NOTICE).
+Haze is not affiliated with MonoCode.

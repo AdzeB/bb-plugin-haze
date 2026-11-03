@@ -1,16 +1,36 @@
 {
   "name": "bb-plugin-haze",
   "version": "0.2.0",
-  "type": "module",
   "description": "MonoCode-style conversation background: your image as a soft haze at the top of every thread that dissolves before the text.",
+  "author": "AdzeB (https://github.com/AdzeB)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AdzeB/bb-plugin-haze.git"
+  },
+  "homepage": "https://github.com/AdzeB/bb-plugin-haze#readme",
+  "bugs": {
+    "url": "https://github.com/AdzeB/bb-plugin-haze/issues"
+  },
+  "keywords": [
+    "bb",
+    "bb-plugin",
+    "background",
+    "wallpaper",
+    "theme",
+    "glass",
+    "dither",
+    "halftone",
+    "ascii"
+  ],
+  "type": "module",
   "engines": {
     "bb": ">=0.48",
     "bbPluginSdk": ">=0.6.104"
   },
   "bb": {
     "name": "Haze",
-    "description": "A MonoCode-style chat background and translucent window.",
+    "description": "Puts your own image behind every BB conversation as a soft haze, with optional window-wide glass, six effects and per-project backgrounds.",
     "branding": {
       "icon": "Image"
     },
