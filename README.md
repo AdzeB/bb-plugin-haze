@@ -5,6 +5,16 @@ a soft haze at the top of New thread and every conversation and fades into the
 theme colour before it reaches the text. With window glass on, the same image,
 blurred, sits behind the whole window the way the desktop shows through MonoCode.
 
+![A conversation with Haze: the wallpaper shows at the top and through the glass, and fades before the text](docs/screenshots/conversation.jpg)
+
+| New thread | Settings → Haze |
+| --- | --- |
+| ![New thread with the Haze effect and window glass](docs/screenshots/new-thread.jpg) | ![The Haze settings page](docs/screenshots/settings.jpg) |
+
+Want to try it straight away? Download the sample wallpaper
+[`docs/wallpapers/scenic-valley.jpg`](docs/wallpapers/scenic-valley.jpg) (public
+domain, see credits) and choose it in **Settings → Haze**.
+
 Haze ports the look of [MonoCode](https://github.com/hardbeat920/monocode) to BB.
 It was inspired by [Aura](https://github.com/MateoCerquetella/bb-plugins/tree/HEAD/plugins/aura)
 and replaces it. It needs no account or network service: images stay in BB's
@@ -62,3 +72,8 @@ MIT, see [LICENSE](LICENSE). The pixel effects (`lib/effects.ts`), the fade
 masks in `app.css`, and the effect names, ranges and defaults are adapted from
 MonoCode (MIT, Copyright (c) 2026 Nick); its notice is in [NOTICE](NOTICE).
 Haze is not affiliated with MonoCode.
+
+The sample wallpaper and the screenshots' background is
+[Scenic Valley in the Afternoon (SD1.5)](https://commons.wikimedia.org/wiki/File:Scenic_Valley_in_the_Afternoon_(SD1.5).jpg)
+by VulcanSphere on Wikimedia Commons, released into the public domain; it is
+resized here. The screenshots come from a fresh BB profile with a sample thread.
