@@ -1,0 +1,136 @@
+/*
+ * Haze: MonoCode's chat-pane background, ported to BB.
+ *
+ * The image is not a wallpaper behind the text. It is light at the top of the
+ * pane: anchored to the top edge, low opacity, and masked so it has dissolved
+ * into the theme background before the reading area. Text therefore always
+ * sits on the plain theme colour and nothing needs an opaque reading column.
+ *
+ * The overlay (HazeRoot in app.tsx) sets on <html>:
+ *   data-haze="haze" | "plain"   (absent = off)
+ *   --haze-image, --haze-empty-opacity, --haze-session-opacity
+ */
+
+/* Masks copied from MonoCode (src/styles/index.css). */
+:root {
+  --haze-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --haze-image-mask: linear-gradient(to bottom, #000 0 19%, rgb(0 0 0 / 79%) 30%, rgb(0 0 0 / 50%) 42%, rgb(0 0 0 / 20%) 54%, rgb(0 0 0 / 5%) 64%, transparent 72%);
+  --haze-image-session-mask: linear-gradient(to bottom, #000 0 18%, rgb(0 0 0 / 61%) 32%, rgb(0 0 0 / 32%) 47%, rgb(0 0 0 / 11%) 62%, transparent 72%);
+  --haze-blur-mask: linear-gradient(to bottom, #000 0 19%, rgb(0 0 0 / 94%) 30%, rgb(0 0 0 / 72%) 42%, rgb(0 0 0 / 42%) 54%, rgb(0 0 0 / 16%) 66%, rgb(0 0 0 / 4%) 78%, transparent 90%);
+  --haze-blur-session-mask: linear-gradient(to bottom, #000 0 18%, transparent 76%);
+}
+
+/* Empty session = New thread; session = an open conversation. */
+html[data-haze] :is(#root-compose-main-panel, .haze-pane[data-kind="empty"]) {
+  --haze-opacity: var(--haze-empty-opacity, 0.24);
+  --haze-mask: var(--haze-image-mask);
+  --haze-blur: 18px;
+  --haze-overlay: linear-gradient(to bottom, transparent 16%, color-mix(in oklab, var(--background) 26%, transparent) 38%, color-mix(in oklab, var(--background) 55%, transparent) 55%, color-mix(in oklab, var(--background) 78%, transparent) 75%);
+}
+html[data-haze] :is(#thread-detail-timeline-panel, .haze-pane[data-kind="session"]) {
+  --haze-opacity: var(--haze-session-opacity, 0.24);
+  --haze-mask: var(--haze-image-session-mask);
+  --haze-blur: 12px;
+  --haze-overlay: linear-gradient(to bottom, transparent 15%, color-mix(in oklab, var(--background) 70%, transparent) 76%);
+}
+html[data-haze="haze"] #root-compose-main-panel,
+html[data-haze="haze"] .haze-pane[data-kind="empty"] { --haze-mask: var(--haze-blur-mask); }
+html[data-haze="haze"] #thread-detail-timeline-panel,
+html[data-haze="haze"] .haze-pane[data-kind="session"] { --haze-mask: var(--haze-blur-session-mask); }
+
+html[data-haze] :is(#root-compose-main-panel, #thread-detail-timeline-panel, .haze-pane) {
+  position: relative;
+  isolation: isolate;
+}
+
+/* The artwork. Scanlines ride on the same layer so they share its fade. */
+html[data-haze] :is(#root-compose-main-panel, #thread-detail-timeline-panel, .haze-pane)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--haze-image) center / cover no-repeat;
+  -webkit-mask-image: var(--haze-mask);
+  mask-image: var(--haze-mask);
+  opacity: var(--haze-opacity);
+  transition: opacity 600ms var(--haze-ease);
+}
+html[data-haze="haze"] :is(#root-compose-main-panel, #thread-detail-timeline-panel, .haze-pane)::before {
+  background:
+    repeating-linear-gradient(to bottom, color-mix(in oklab, var(--background) 36%, transparent) 0 1px, transparent 1px 3px),
+    var(--haze-image) center / cover no-repeat;
+}
+
+/*
+ * Haze: blur that grows toward the bottom and a wash back to the theme colour.
+ * MonoCode stacks two blurred copies; one masked backdrop blur reads the same.
+ */
+html[data-haze="haze"] :is(#root-compose-main-panel, #thread-detail-timeline-panel, .haze-pane)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--haze-overlay);
+  -webkit-backdrop-filter: blur(var(--haze-blur));
+  backdrop-filter: blur(var(--haze-blur));
+  -webkit-mask-image: linear-gradient(to bottom, transparent 18%, #000 66%);
+  mask-image: linear-gradient(to bottom, transparent 18%, #000 66%);
+  /* Tracks the image so it vanishes with it (0 when scoped to New thread). */
+  opacity: calc(var(--haze-opacity) * 4);
+  transition: opacity 600ms var(--haze-ease);
+}
+
+/* Opening a thread eases the haze in, like MonoCode's first-send transition. */
+@starting-style {
+  html[data-haze] :is(#root-compose-main-panel, #thread-detail-timeline-panel)::before,
+  html[data-haze] :is(#root-compose-main-panel, #thread-detail-timeline-panel)::after {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-haze] :is(#root-compose-main-panel, #thread-detail-timeline-panel)::before,
+  html[data-haze] :is(#root-compose-main-panel, #thread-detail-timeline-panel)::after {
+    transition: none;
+  }
+}
+
+/*
+ * New thread: MonoCode centres the composer, so it sits where the image has
+ * already softened instead of over its brightest part. Phones keep BB's
+ * bottom-pinned composer.
+ */
+@media (min-width: 768px) {
+  html[data-haze] #root-compose-main-panel [class~="@container/page"] {
+    display: flex;
+    flex-direction: column;
+  }
+  html[data-haze] #root-compose-main-panel [class~="@container/page"] > .mx-auto {
+    margin-block: auto;
+  }
+}
+
+/*
+ * Conversation chrome: let the haze run up behind the header (MonoCode's glass
+ * title bar), and fade messages out under it instead of cutting them off.
+ */
+html[data-haze] #thread-detail-timeline-panel > [data-split-pane-id] > header {
+  background-color: transparent;
+  border-bottom-color: transparent;
+}
+html[data-haze] #thread-detail-timeline-panel [data-page-scroll-viewport] {
+  background-color: transparent;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 1.5rem);
+  mask-image: linear-gradient(to bottom, transparent, #000 1.5rem);
+}
+/* The first message rests below that fade. */
+html[data-haze] #thread-detail-timeline-panel [data-scroll-attached] {
+  padding-top: 1.75rem;
+}
+
+/* Settings preview panes. */
+.haze-pane {
+  overflow: hidden;
+  background: var(--background);
+}
