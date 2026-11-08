@@ -52,6 +52,14 @@ The CSS depends on BB's DOM: those two panel ids, `[data-sidebar=…]`,
 `[data-page-scroll-viewport]`, `[data-scroll-attached]`, `[data-scroll-footer]`
 and the thread header. Recheck them after a BB upgrade.
 
+Below 768px, main pane glass clips the mobile sidebar to the strip uncovered
+by the sliding chat. This keeps sidebar text from showing through the chat,
+including during opening, closing, and partial swipes. `lib/mobile-sidebar.ts`
+mirrors BB's translate target and transition timing, and removes its observers
+and CSS variables on unmount. It relies on BB 0.49's main pane inline
+translate/transition and `data-sidebar-shelf` / `data-panel-shelf` attributes.
+Desktop and sidebar-only glass are unchanged.
+
 ## Install
 
 ```sh
