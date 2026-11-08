@@ -1,6 +1,6 @@
 // Haze frontend. All drawing is CSS (app.css); this file puts the active
 // background on <html>, runs the pixel effects, and renders the settings page.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import {
   definePluginApp,
@@ -25,6 +25,7 @@ import {
   type Snapshot,
 } from "./lib/model";
 import { disposeEffects, needsWorker, renderEffect } from "./lib/effects";
+import { installMobileSidebarClip } from "./lib/mobile-sidebar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import "./app.css";
@@ -133,6 +134,7 @@ function unpaint(): void {
 
 /** Mounted once per window; keeps <html> in sync with the focused project's background. */
 function HazeRoot() {
+  useLayoutEffect(installMobileSidebarClip, []);
   const { snapshot } = useSnapshot();
   const { projectId } = useBbContext();
   const background = snapshot ? activeBackground(snapshot, projectId) : null;

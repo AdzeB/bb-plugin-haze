@@ -176,6 +176,17 @@ html[data-haze-glass] [data-sidebar="sidebar"] {
 html[data-haze-glass="body"] main[data-sidebar="inset"] {
   background: color-mix(in oklab, var(--background) 40%, transparent);
 }
+/* BB slides the mobile chat over a stationary sidebar. Clip the sidebar to
+ * the uncovered strip so its text cannot show through body glass, including
+ * during opening, closing, and partial swipes. The controller mirrors BB's
+ * translate target and timing rather than running a separate animation loop.
+ */
+@media (max-width: 767px) {
+  html[data-haze-glass="body"] [data-sidebar="panel"] {
+    clip-path: inset(0 max(0px, calc(100% - var(--haze-mobile-sidebar-reveal, 0px))) 0 0);
+    transition: var(--haze-mobile-sidebar-transition, none);
+  }
+}
 /*
  * The composer's sticky band: frosted glass instead of a solid block, so the
  * image runs to the bottom of the window while messages scrolling under the
