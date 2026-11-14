@@ -176,9 +176,36 @@ const SET_BACKDROP = "haze:set-backdrop";
 let shownScene: string = "none";
 let shownScheme: Scheme = "light";
 
+/**
+ * Marks <html data-haze-page="settings"> while BB's Settings are open, so the
+ * backdrop steps aside there (app.css). Plugins get no route hook, so this
+ * follows the URL: the Navigation API where the browser has it, else a light poll.
+ */
+function useSettingsPageMark(): void {
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => {
+      if (window.location.pathname.startsWith("/settings")) root.dataset.hazePage = "settings";
+      else delete root.dataset.hazePage;
+    };
+    update();
+    const navigation = (window as unknown as { navigation?: EventTarget }).navigation;
+    window.addEventListener("popstate", update);
+    navigation?.addEventListener("navigatesuccess", update);
+    const poll = navigation ? 0 : window.setInterval(update, 500);
+    return () => {
+      window.removeEventListener("popstate", update);
+      navigation?.removeEventListener("navigatesuccess", update);
+      window.clearInterval(poll);
+      delete root.dataset.hazePage;
+    };
+  }, []);
+}
+
 /** Mounted once per window; keeps <html> in sync with the backdrop or the focused project's background. */
 function HazeRoot() {
   const { rpc, snapshot } = useSnapshot();
+  useSettingsPageMark();
   const { projectId } = useBbContext();
   const background = snapshot ? activeBackground(snapshot, projectId) : null;
   const scene = sceneById(snapshot?.backdrop.scene);

@@ -439,6 +439,22 @@ html:is([data-haze-backdrop], [data-haze-glass="body"]) [data-scroll-footer] > .
 }
 
 /*
+ * Settings: no scene. Settings are for reading and changing things, so the
+ * backdrop (and a full-screen image) steps aside there: the canvas is taken
+ * down and BB's own window frame and backgrounds come back, title bar
+ * included. Layout choices such as the edge-to-edge sidebar still apply.
+ * `revert-layer` hands each property back to BB's layered styles.
+ */
+html[data-haze-backdrop][data-haze-page="settings"] .haze-backdrop {
+  display: none;
+}
+html[data-haze-backdrop][data-haze-page="settings"],
+html[data-haze-backdrop][data-haze-page="settings"] body,
+html[data-haze-backdrop][data-haze-page="settings"] [class~="group/sidebar-wrapper"] {
+  background: revert-layer;
+}
+
+/*
  * Reduce transparency (macOS Accessibility, and other systems): the HIG asks
  * for solid surfaces, so the sidebar and main pane glass go opaque and stop
  * blurring. The scene still shows in the conversation, where the veil is.
