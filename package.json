@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-haze",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "MonoCode-style conversation background and live full-window backdrops (Cloud Drift) for BB.",
   "author": "AdzeB (https://github.com/AdzeB)",
   "license": "MIT",

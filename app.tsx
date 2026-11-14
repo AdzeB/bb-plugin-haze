@@ -151,10 +151,11 @@ const BACKDROP_VARS = ["--haze-backdrop-base", "--haze-veil", "--haze-sidebar-op
  * Something drawn behind the whole window: a scene (`id` is its id) or a
  * full-screen image (`id` is "image"). It replaces the top haze everywhere.
  */
-function paintBackdrop(id: string, base: string, veil: number, glass: Glass): void {
+function paintBackdrop(id: string, base: string, veil: number, glass: Glass, reach: Backdrop["reach"]): void {
   unpaint();
   const root = document.documentElement;
   root.dataset.hazeBackdrop = id;
+  root.dataset.hazeReach = reach;
   root.style.setProperty("--haze-backdrop-base", base);
   root.style.setProperty("--haze-veil", String(veil));
   root.style.setProperty("--haze-sidebar-opacity", String(glass.sidebarOpacity));
@@ -167,6 +168,7 @@ function unpaintBackdrop(): void {
   const root = document.documentElement;
   if (!root.dataset.hazeBackdrop) return;
   delete root.dataset.hazeBackdrop;
+  delete root.dataset.hazeReach;
   delete root.dataset.hazeSidebar;
   for (const name of BACKDROP_VARS) root.style.removeProperty(name);
 }
@@ -176,9 +178,44 @@ const SET_BACKDROP = "haze:set-backdrop";
 let shownScene: string = "none";
 let shownScheme: Scheme = "light";
 
+/**
+ * Marks which kind of screen is open on <html data-haze-page>: "conversation"
+ * (New thread, a thread), "settings" or "other" (plugin pages and the rest),
+ * so a backdrop can keep to conversations (app.css). Plugins get no route
+ * hook, so this follows the URL: the Navigation API where the browser has it,
+ * else a light poll. The CSS also treats any screen showing a conversation
+ * pane as a conversation, so splits and unknown routes still get the scene.
+ */
+function pageKind(path: string): "conversation" | "settings" | "other" {
+  if (path === "/" || path.startsWith("/threads/")) return "conversation";
+  if (path === "/settings" || path.startsWith("/settings/")) return "settings";
+  return "other";
+}
+
+function usePageMark(): void {
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => {
+      root.dataset.hazePage = pageKind(window.location.pathname);
+    };
+    update();
+    const navigation = (window as unknown as { navigation?: EventTarget }).navigation;
+    window.addEventListener("popstate", update);
+    navigation?.addEventListener("navigatesuccess", update);
+    const poll = navigation ? 0 : window.setInterval(update, 500);
+    return () => {
+      window.removeEventListener("popstate", update);
+      navigation?.removeEventListener("navigatesuccess", update);
+      window.clearInterval(poll);
+      delete root.dataset.hazePage;
+    };
+  }, []);
+}
+
 /** Mounted once per window; keeps <html> in sync with the backdrop or the focused project's background. */
 function HazeRoot() {
   const { rpc, snapshot } = useSnapshot();
+  usePageMark();
   const { projectId } = useBbContext();
   const background = snapshot ? activeBackground(snapshot, projectId) : null;
   const scene = sceneById(snapshot?.backdrop.scene);
@@ -193,8 +230,8 @@ function HazeRoot() {
     if (!snapshot || !background) return;
     shownScene = scene?.id ?? "none";
     shownScheme = scheme;
-    if (scene) return paintBackdrop(scene.id, scene.base[scheme], snapshot.backdrop.veil, snapshot.glass);
-    if (fullImage) return paintBackdrop("image", "var(--background)", background.settings.veil, snapshot.glass);
+    if (scene) return paintBackdrop(scene.id, scene.base[scheme], snapshot.backdrop.veil, snapshot.glass, snapshot.backdrop.reach);
+    if (fullImage) return paintBackdrop("image", "var(--background)", background.settings.veil, snapshot.glass, snapshot.backdrop.reach);
     unpaintBackdrop();
     paint(background, image, snapshot.glass);
   }, [snapshot, background, scene, scheme, image, fullImage]);
@@ -666,6 +703,17 @@ function BackdropEditor({ backdrop, busy, rpc, run }: { backdrop: Backdrop; busy
           />
         ))}
       </div>
+      <Segmented
+        label="Show on"
+        hint={
+          backdrop.reach === "everywhere"
+            ? "Behind conversations, Settings and every other page. Also applies to a full-screen chat background."
+            : "Only behind New thread and conversations; Settings and other pages keep BB's own look. Also applies to a full-screen chat background."
+        }
+        value={backdrop.reach}
+        options={[["conversations", "Conversations"], ["everywhere", "Everywhere"]]}
+        onChange={(reach) => save({ reach })}
+      />
       <fieldset disabled={!scene} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-50">
         <Segmented
           label="Mode"

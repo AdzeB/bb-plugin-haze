@@ -293,9 +293,11 @@ html:is([data-haze-backdrop], [data-haze-glass]) [class~="group/sidebar-wrapper"
   background: transparent;
 }
 /*
- * Edge-to-edge sidebar (desktop app). BB frames the window: the sidebar is a
+ * Edge-to-edge layout (desktop app). BB frames the window: the sidebar is a
  * card inset 8px from the window's leading and bottom edges and starting
- * below the 44px title bar, so the scene shows through a gutter around it.
+ * below the 44px title bar, and the content card stops 8px short of the
+ * right and bottom edges, so a gutter of frame colour (or the scene) runs
+ * around both.
  * Following the macOS HIG, the sidebar instead runs the full height of the
  * window to its leading edge, under the title bar (the traffic lights sit on
  * it), keeps its content below the title bar, and meets the content area at
@@ -303,6 +305,14 @@ html:is([data-haze-backdrop], [data-haze-glass]) [class~="group/sidebar-wrapper"
  */
 html[data-haze-sidebar="edge"] [data-framed][class~="group/sidebar-wrapper"] {
   --bb-window-frame-leading-lip: 0px;
+  /*
+   * The content card's 8px frame lip on the right and bottom goes too, so the
+   * card meets the window's edges the way the sidebar does (and Settings has
+   * no strip of frame colour along the bottom). Only the padding changes:
+   * BB positions its title-bar controls from --bb-window-frame-lip.
+   */
+  padding-right: 0;
+  padding-bottom: 0;
 }
 html[data-haze-sidebar="edge"] [data-framed] [data-sidebar="panel"] {
   top: 0;
@@ -436,6 +446,55 @@ html[data-haze-backdrop] [data-scroll-footer] > .bg-background::before {
  */
 html:is([data-haze-backdrop], [data-haze-glass="body"]) [data-scroll-footer] > .bg-background > .bg-gradient-to-b {
   display: none;
+}
+
+/*
+ * Show on: Conversations (the default). Off New thread and conversations, the
+ * backdrop (or a full-screen image) steps aside: the canvas is taken down
+ * (and stops drawing) and BB's own window frame and backgrounds come back,
+ * title bar included, so Settings and other pages read as plain BB. Layout
+ * choices such as the edge-to-edge sidebar still apply. A screen counts as a
+ * conversation by its URL (data-haze-page, set by HazeRoot) or because it
+ * shows a conversation pane, so splits and thread loading keep the scene.
+ * `revert-layer` hands each property back to BB's layered styles.
+ */
+html[data-haze-backdrop]:not([data-haze-reach="everywhere"]):not([data-haze-page="conversation"]):not(:has(#thread-detail-timeline-panel, #root-compose-main-panel)) .haze-backdrop {
+  display: none;
+}
+html[data-haze-backdrop]:not([data-haze-reach="everywhere"]):not([data-haze-page="conversation"]):not(:has(#thread-detail-timeline-panel, #root-compose-main-panel)),
+html[data-haze-backdrop]:not([data-haze-reach="everywhere"]):not([data-haze-page="conversation"]):not(:has(#thread-detail-timeline-panel, #root-compose-main-panel)) body,
+html[data-haze-backdrop]:not([data-haze-reach="everywhere"]):not([data-haze-page="conversation"]):not(:has(#thread-detail-timeline-panel, #root-compose-main-panel)) [class~="group/sidebar-wrapper"] {
+  background: revert-layer;
+}
+
+/*
+ * Show on: Everywhere. Settings and other pages open onto the scene too. The
+ * page's cards and controls keep their own solid surfaces; behind them the
+ * whole page gets a stronger wash than a conversation's column (veil + 25%),
+ * since these pages are dense and often several columns wide, and the page
+ * header turns clear like the thread header. Plugin pages that paint their
+ * own panes keep them.
+ */
+html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"] {
+  background: transparent;
+  isolation: isolate;
+}
+html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"]::before {
+  background: transparent;
+}
+html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"]:not(:has(#thread-detail-timeline-panel, #root-compose-main-panel))::before {
+  --haze-page-veil: color-mix(in oklab, var(--background) calc(min(1, var(--haze-veil, 0.45) + 0.25) * 100%), transparent);
+  content: "";
+  position: absolute;
+  /* The whole pane, title bar included, in one even wash: no brighter band at the top. */
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--haze-page-veil);
+}
+html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"] [class~="@container/page-header"] {
+  background: transparent;
+  border-bottom-color: transparent;
 }
 
 /*

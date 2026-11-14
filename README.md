@@ -30,7 +30,10 @@ Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
   with flocks of birds by day, or a starry night under an ASCII crescent moon.
   **Mode** picks *Light* or *Dark* (drawing that version and holding BB in the
   same scheme while it shows, like Claude Code's `overrideColorScheme`) or
-  *Match BB* (follow BB's theme). **Reading veil** (0–80%, default 45%) washes
+  *Match BB* (follow BB's theme). **Show on** keeps a backdrop (or a
+  full-screen image) to *Conversations* (New thread and threads; Settings and
+  other pages keep BB's own look) or shows it *Everywhere*, with a stronger
+  wash behind dense pages. **Reading veil** (0–80%, default 45%) washes
   the reading column so text stays legible; **Motion** off holds a still frame.
   The command palette has *Haze: Cloud Drift backdrop*, *Haze: Switch the
   backdrop between day and night* and *Haze: Turn the backdrop off*.

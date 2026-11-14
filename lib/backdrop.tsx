@@ -49,7 +49,10 @@ export function SceneCanvas({
     let frame = 0;
     let lastDraw = -Infinity;
 
+    // Hidden (display: none, e.g. on the Settings screen): keep the scene as it is and stop drawing.
+    const hidden = () => canvas.getClientRects().length === 0;
     const measure = () => {
+      if (hidden()) return false;
       const rect = canvas.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const width = Math.max(1, rect.width / scale);
@@ -66,7 +69,7 @@ export function SceneCanvas({
       instance.draw(ctx, (now - start) / 1000);
       lastDraw = now;
     };
-    const moving = () => animate && !reduced.matches && !document.hidden;
+    const moving = () => animate && !reduced.matches && !document.hidden && !hidden();
     const tick = (now: number) => {
       frame = 0;
       if (!moving()) return;
@@ -78,12 +81,13 @@ export function SceneCanvas({
     };
     const redraw = () => {
       measure();
-      draw(performance.now());
+      if (!hidden()) draw(performance.now());
       resume();
     };
 
     const observer = new ResizeObserver(() => {
       if (measure()) draw(performance.now());
+      resume(); // shown again after being hidden
     });
     observer.observe(canvas);
     document.addEventListener("visibilitychange", resume);
