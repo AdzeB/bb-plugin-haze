@@ -486,12 +486,11 @@ html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"
   --haze-page-veil: color-mix(in oklab, var(--background) calc(min(1, var(--haze-veil, 0.45) + 0.25) * 100%), transparent);
   content: "";
   position: absolute;
-  inset: var(--bb-window-title-bar-height, 0px) 0 0;
+  /* The whole pane, title bar included, in one even wash: no brighter band at the top. */
+  inset: 0;
   z-index: -1;
   pointer-events: none;
   background: var(--haze-page-veil);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 5rem);
-  mask-image: linear-gradient(to bottom, transparent, #000 5rem);
 }
 html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"] [class~="@container/page-header"] {
   background: transparent;
