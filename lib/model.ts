@@ -69,9 +69,13 @@ export type SceneId = (typeof SCENES)[number];
 export const backdropSchema = z.object({
   // An id from a newer Haze falls back to no backdrop instead of failing.
   scene: z.enum(SCENES).catch("none").default("none"),
-  // "scene": switch BB to the scene's light or dark scheme while it shows
-  // (Claude Code's overrideColorScheme); "app": keep BB's own theme.
-  colorScheme: z.enum(["scene", "app"]).default("scene"),
+  // "light" / "dark": draw that version of the scene and hold BB in the same
+  // scheme while it shows (Claude Code's overrideColorScheme). "auto": follow
+  // BB's theme and draw the matching version. 0.3 stored "scene" (the scene's
+  // own scheme; Cloud Drift was light) and "app" (keep BB's theme).
+  colorScheme: z
+    .preprocess((v) => (v === "scene" ? "light" : v === "app" ? "auto" : v), z.enum(["light", "dark", "auto"]))
+    .default("light"),
   veil: ranged(VEIL),
   motion: z.boolean().default(true),
 });

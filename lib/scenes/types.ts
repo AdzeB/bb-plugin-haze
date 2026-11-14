@@ -10,18 +10,19 @@ export interface SceneInstance {
   draw(ctx: CanvasRenderingContext2D, time: number): void;
 }
 
+export type Scheme = "light" | "dark";
+
+/** Every scene comes in a light and a dark version, drawn for BB's matching theme. */
 export interface SceneDefinition {
   id: Exclude<SceneId, "none">;
   label: string;
-  description: string;
-  /** The BB colour scheme the scene is painted for (Claude Code's overrideColorScheme). */
-  colorScheme: "light" | "dark";
-  /** A flat colour close to the scene, shown before its first frame. */
-  base: string;
+  description: Record<Scheme, string>;
+  /** A flat colour close to each version, shown before its first frame. */
+  base: Record<Scheme, string>;
   /** Frames per second while animating; scenes are slow, so 30 is plenty. */
   fps?: number;
-  /** A fresh instance; the same seed draws the same scene. */
-  create(seed: number): SceneInstance;
+  /** A fresh instance of one version; the same seed draws the same scene. */
+  create(seed: number, scheme: Scheme): SceneInstance;
 }
 
 /** Small deterministic PRNG (mulberry32), so thumbnails and reloads look the same. */

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { SceneDefinition } from "./scenes";
+import type { Scheme } from "./scenes/types";
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 
@@ -15,6 +16,7 @@ const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
  */
 export function SceneCanvas({
   scene,
+  scheme,
   animate,
   scale = 1,
   seed = 7,
@@ -24,6 +26,7 @@ export function SceneCanvas({
   onRevealed,
 }: {
   scene: SceneDefinition;
+  scheme: Scheme;
   animate: boolean;
   scale?: number;
   seed?: number;
@@ -38,7 +41,7 @@ export function SceneCanvas({
     const canvas = ref.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    const instance = scene.create(seed);
+    const instance = scene.create(seed, scheme);
     const reduced = window.matchMedia(REDUCED_MOTION);
     const interval = 1000 / (scene.fps ?? 30);
     const start = performance.now();
@@ -92,7 +95,7 @@ export function SceneCanvas({
       document.removeEventListener("visibilitychange", resume);
       reduced.removeEventListener("change", redraw);
     };
-  }, [scene, animate, scale, seed]);
+  }, [scene, scheme, animate, scale, seed]);
 
   return (
     <canvas
@@ -106,20 +109,32 @@ export function SceneCanvas({
   );
 }
 
-type Layer = { key: number; scene: SceneDefinition; reveal: boolean };
+type Layer = { key: number; scene: SceneDefinition; scheme: Scheme; reveal: boolean };
 
 /**
  * The window backdrop: a fixed canvas behind all of BB. A new scene opens in
  * a widening circle over the old one, which is dropped once it is covered.
  */
-export function BackdropLayer({ scene, animate, reveal }: { scene: SceneDefinition; animate: boolean; reveal: boolean }) {
-  const [layers, setLayers] = useState<Layer[]>(() => [{ key: 0, scene, reveal }]);
+export function BackdropLayer({
+  scene,
+  scheme,
+  animate,
+  reveal,
+}: {
+  scene: SceneDefinition;
+  scheme: Scheme;
+  animate: boolean;
+  reveal: boolean;
+}) {
+  const [layers, setLayers] = useState<Layer[]>(() => [{ key: 0, scene, scheme, reveal }]);
+  // A new scene, or the other version of this one (day to night), opens over the last.
   useEffect(() => {
     setLayers((prev) => {
       const top = prev[prev.length - 1]!;
-      return top.scene.id === scene.id ? prev : [top, { key: top.key + 1, scene, reveal: true }];
+      if (top.scene.id === scene.id && top.scheme === scheme) return prev;
+      return [top, { key: top.key + 1, scene, scheme, reveal: true }];
     });
-  }, [scene]);
+  }, [scene, scheme]);
   return createPortal(
     <div className="haze-backdrop" aria-hidden="true">
       {layers.map((layer) => (
@@ -127,6 +142,7 @@ export function BackdropLayer({ scene, animate, reveal }: { scene: SceneDefiniti
           key={layer.key}
           className="haze-backdrop-layer"
           scene={layer.scene}
+          scheme={layer.scheme}
           animate={animate}
           reveal={layer.reveal}
           onRevealed={() => setLayers((prev) => prev.filter((other) => other.key >= layer.key))}
