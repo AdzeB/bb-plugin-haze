@@ -22,8 +22,21 @@ local plugin database.
 
 Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
 
+- **Backdrop:** a live scene drawn behind the whole window, the BB version of a
+  Claude Code mod's [backdrop](https://code.claude.com/docs/en/plugins/mods/interface#put-a-backdrop-behind-the-conversation).
+  It fills the conversation from the header to the bottom edge, under the
+  composer too, and replaces the chat background while it is on. The first
+  scene is **Cloud Drift**: ASCII cumulus clouds drifting across a bright sky,
+  with flocks of birds flapping past. **Colours** either switches BB to the
+  scene's scheme while it shows (*Match scene*, like Claude Code's
+  `overrideColorScheme`; Cloud Drift is a light scene) or keeps your theme.
+  **Reading veil** (0–80%, default 45%) washes the reading column so text
+  stays legible; **Motion** off holds a still frame. The command palette has
+  *Haze: Cloud Drift backdrop* and *Haze: Turn the backdrop off*.
 - **Chat background:** image, **Effect** (None, Dither, ASCII, Halftone,
-  Scanlines, Haze), **Show on** (all sessions or empty chats), and separate
+  Scanlines, Haze), **Fill** (*Top haze*, MonoCode's fade at the top of the
+  pane, or *Full screen*, the image behind the whole window from the header
+  to below the composer, with its own **Reading veil**), **Show on** (all sessions or empty chats), and separate
   visibility for empty chats and sessions (5–65%, default 24%). These are
   MonoCode's names, ranges and defaults.
 - **Window:** window glass, sidebar opacity (default 85%), blur radius (default
@@ -36,9 +49,15 @@ Turn Aura off while Haze is on (`bb plugin disable aura`). Both plugins draw on 
 
 ## How it works
 
-- `app.tsx` mounts an app overlay that writes the focused project's background
-  to `<html>` (`data-haze`, `data-haze-glass` and CSS variables), and renders
-  the settings page.
+- `app.tsx` mounts an app overlay that writes the backdrop or the focused
+  project's background to `<html>` (`data-haze-backdrop`, `data-haze`,
+  `data-haze-glass` and CSS variables), and renders the settings page.
+- `lib/backdrop.tsx` runs a scene on a canvas fixed behind all of BB: sizing,
+  a 30 fps loop that pauses while the window is hidden, a circular reveal when
+  you switch scenes, and the colour-scheme override (it holds BB's `dark`
+  class and restores what BB last asked for). Scenes live in `lib/scenes/`; a
+  scene is a `SceneDefinition` whose instance only resizes and draws. Add one
+  there and its id to `SCENES` in `lib/model.ts`.
 - `lib/effects.ts` ports MonoCode's pixel effects to a Web Worker built from
   one function, cached per image, effect and theme.
 - `app.css` draws with `::before`/`::after` on BB's `#root-compose-main-panel`
@@ -50,7 +69,9 @@ Turn Aura off while Haze is on (`bb plugin disable aura`). Both plugins draw on 
 
 The CSS depends on BB's DOM: those two panel ids, `[data-sidebar=…]`,
 `[data-page-scroll-viewport]`, `[data-scroll-attached]`, `[data-scroll-footer]`
-and the thread header. Recheck them after a BB upgrade.
+(and BB's fade strip above it), the thread header, the `dark` class on
+`<html>`, and, in the desktop app, the framed `group/sidebar-wrapper` that
+paints the window frame. Recheck them after a BB upgrade.
 
 ## Install
 

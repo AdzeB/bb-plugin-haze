@@ -189,18 +189,204 @@ html[data-haze-glass="body"] [data-scroll-footer] > .bg-background {
 html[data-haze-glass="body"] [data-scroll-footer] > .bg-background::before {
   content: "";
   position: absolute;
-  inset: 0;
+  /* Starts above the band, where BB's own fade strip was. */
+  inset: -1.5rem 0 0;
   z-index: -1;
   pointer-events: none;
   background: color-mix(in oklab, var(--background) 30%, transparent);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 2.5rem);
-  mask-image: linear-gradient(to bottom, transparent, #000 2.5rem);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 4rem);
+  mask-image: linear-gradient(to bottom, transparent, #000 4rem);
+}
+
+/*
+ * Backdrop: a live scene (lib/scenes) on a canvas fixed behind the whole
+ * window, the way a Claude Code mod draws at its Backdrop render site.
+ * HazeRoot sets on <html>:
+ *   data-haze-backdrop="<scene id>", --haze-backdrop-base, --haze-veil,
+ *   --haze-sidebar-opacity, --haze-glass-blur
+ * Unlike the image haze, nothing fades out: every pane is clear from the
+ * header to below the composer, so the scene fills the window edge to edge.
+ * A soft wash behind the reading column (--haze-veil) keeps text legible.
+ */
+html[data-haze-backdrop] {
+  background: var(--haze-backdrop-base, var(--background));
+}
+html[data-haze-backdrop] body {
+  background: transparent;
+}
+.haze-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.haze-backdrop-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* Fill: Full screen. The chat background image, behind the whole window. */
+.haze-backdrop-image {
+  background: center / cover no-repeat;
+  animation: haze-fade-in 600ms var(--haze-ease) both;
+}
+/* The Haze effect, full screen: blurred, with its display lines. Overscan so the blur has no soft edge. */
+.haze-backdrop-image[data-effect="haze"] {
+  inset: -48px;
+  width: auto;
+  height: auto;
+  filter: blur(18px);
+}
+html[data-haze-backdrop="image"] .haze-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+html[data-haze-backdrop="image"] .haze-backdrop:has([data-effect="haze"])::after {
+  background: repeating-linear-gradient(to bottom, color-mix(in oklab, var(--background) 30%, transparent) 0 1px, transparent 1px 3px);
+}
+@keyframes haze-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A newly picked scene opens in a circle from the composer, over the old one. */
+.haze-backdrop-layer[data-reveal] {
+  animation: haze-reveal 1100ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+@keyframes haze-reveal {
+  from {
+    clip-path: circle(0% at 50% 88%);
+  }
+  to {
+    clip-path: circle(150% at 50% 88%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .haze-backdrop-layer[data-reveal] {
+    animation-duration: 1ms;
+  }
+}
+
+html[data-haze-backdrop] :is([data-sidebar="panel"], [data-sidebar="content"]) {
+  background: transparent;
+}
+/*
+ * BB's desktop app frames the window: the sidebar wrapper paints the frame
+ * colour (bg-sidebar plus a surface-recessed layer) across the whole window,
+ * which hides anything behind it. Clear it so the backdrop, or the window
+ * glass, shows through the frame and the panes. The browser has no frame.
+ */
+html:is([data-haze-backdrop], [data-haze-glass]) [class~="group/sidebar-wrapper"] {
+  background: transparent;
+}
+html[data-haze-backdrop] [data-sidebar="sidebar"] {
+  background: color-mix(in oklab, var(--sidebar) calc(var(--haze-sidebar-opacity, 0.85) * 100%), transparent);
+  -webkit-backdrop-filter: blur(var(--haze-glass-blur, 24px));
+  backdrop-filter: blur(var(--haze-glass-blur, 24px));
+}
+/* Only conversation screens open onto the scene; Settings and plugin pages stay solid. */
+html[data-haze-backdrop] main[data-sidebar="inset"]:has(#thread-detail-timeline-panel, #root-compose-main-panel),
+html[data-haze-backdrop] #thread-detail-timeline-panel > [data-split-pane-id] > header,
+html[data-haze-backdrop] #thread-detail-timeline-panel [data-page-scroll-viewport] {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+/* Messages fade out under the header instead of being cut off by it. */
+html[data-haze-backdrop] #thread-detail-timeline-panel [data-page-scroll-viewport] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 1.5rem);
+  mask-image: linear-gradient(to bottom, transparent, #000 1.5rem);
+}
+html[data-haze-backdrop] #thread-detail-timeline-panel [data-scroll-attached] {
+  padding-top: 1.75rem;
+}
+
+/* The reading column's wash: strongest behind the text, gone at its edges. */
+html[data-haze-backdrop] :is(#root-compose-main-panel, #thread-detail-timeline-panel) {
+  position: relative;
+  isolation: isolate;
+}
+html[data-haze-backdrop] :is(#root-compose-main-panel, #thread-detail-timeline-panel)::before {
+  --haze-veil-color: color-mix(in oklab, var(--background) calc(var(--haze-veil, 0.45) * 100%), transparent);
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--haze-veil-color) 14%, var(--haze-veil-color) 86%, transparent)
+    center / min(100%, 56rem) 100% no-repeat;
+  /*
+   * Fade in from the top and out at the bottom, so the pane's edges never cut
+   * a line across the picture. The desktop app's title bar sits above the
+   * pane; without this the scene there was brighter than just below it.
+   */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 7rem, #000 calc(100% - 3rem), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 7rem, #000 calc(100% - 3rem), transparent);
+}
+
+/*
+ * The composer's sticky band stays clear so the scene runs to the bottom
+ * edge. Messages scrolling under it are blurred away by a frost that fades
+ * in from the band's top, with no tint over the scene.
+ */
+html[data-haze-backdrop] [data-scroll-footer] > .bg-background {
+  background: transparent;
+  isolation: isolate;
+}
+html[data-haze-backdrop] [data-scroll-footer] > .bg-background::before {
+  content: "";
+  position: absolute;
+  inset: -1.5rem 0 0;
+  z-index: -1;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 3.5rem);
+  mask-image: linear-gradient(to bottom, transparent, #000 3.5rem);
+}
+/*
+ * BB fades messages into the band with a strip of solid theme colour above
+ * it. Over a scene or the window glass that strip reads as a white (or black)
+ * bar cutting the window in two, so drop it; the frost does the fading.
+ */
+html:is([data-haze-backdrop], [data-haze-glass="body"]) [data-scroll-footer] > .bg-background > .bg-gradient-to-b {
+  display: none;
 }
 
 /* Settings preview panes. */
 .haze-pane {
   overflow: hidden;
   background: var(--background);
+}
+/*
+ * Full screen preview: the whole image, with the reading veil down the middle.
+ * !important because the shared pane rules above carry an id's specificity.
+ */
+.haze-preview[data-haze][data-fill="full"] .haze-pane::before {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+  opacity: 1 !important;
+}
+.haze-preview[data-haze="haze"][data-fill="full"] .haze-pane::before {
+  filter: blur(4px) !important;
+}
+.haze-preview[data-haze][data-fill="full"] .haze-pane::after {
+  --haze-veil-color: color-mix(in oklab, var(--background) calc(var(--haze-veil, 0.45) * 100%), transparent);
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+  background: linear-gradient(to right, transparent, var(--haze-veil-color) 14%, var(--haze-veil-color) 86%, transparent) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+  opacity: 1 !important;
 }

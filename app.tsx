@@ -1,5 +1,6 @@
-// Haze frontend. All drawing is CSS (app.css); this file puts the active
-// background on <html>, runs the pixel effects, and renders the settings page.
+// Haze frontend. Image backgrounds are drawn in CSS (app.css); this file puts
+// the active background on <html>, runs the pixel effects and the live
+// backdrop scenes (lib/backdrop.tsx), and renders the settings page.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import {
@@ -18,6 +19,8 @@ import {
   EFFECTS,
   OPACITY,
   SIDEBAR_OPACITY,
+  VEIL,
+  type Backdrop,
   type Background,
   type BackgroundSettings,
   type Effect,
@@ -25,6 +28,8 @@ import {
   type Snapshot,
 } from "./lib/model";
 import { disposeEffects, needsWorker, renderEffect } from "./lib/effects";
+import { BackdropLayer, ImageBackdrop, SceneCanvas, useColorSchemeOverride } from "./lib/backdrop";
+import { SCENE_LIST, sceneById, type SceneDefinition } from "./lib/scenes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import "./app.css";
@@ -94,6 +99,7 @@ function backgroundStyle(settings: BackgroundSettings, image: string) {
       "--haze-image": `url("${image}")`,
       "--haze-empty-opacity": String(settings.emptyOpacity),
       "--haze-session-opacity": String(settings.scope === "empty" ? 0 : settings.sessionOpacity),
+      "--haze-veil": String(settings.veil),
     },
   };
 }
@@ -102,6 +108,7 @@ const VARS = [
   "--haze-image",
   "--haze-empty-opacity",
   "--haze-session-opacity",
+  "--haze-veil",
   "--haze-window-image",
   "--haze-sidebar-opacity",
   "--haze-glass-blur",
@@ -131,22 +138,75 @@ function unpaint(): void {
   for (const name of VARS) root.style.removeProperty(name);
 }
 
-/** Mounted once per window; keeps <html> in sync with the focused project's background. */
+const BACKDROP_VARS = ["--haze-backdrop-base", "--haze-veil", "--haze-sidebar-opacity", "--haze-glass-blur"];
+
+/**
+ * Something drawn behind the whole window: a scene (`id` is its id) or a
+ * full-screen image (`id` is "image"). It replaces the top haze everywhere.
+ */
+function paintBackdrop(id: string, base: string, veil: number, glass: Glass): void {
+  unpaint();
+  const root = document.documentElement;
+  root.dataset.hazeBackdrop = id;
+  root.style.setProperty("--haze-backdrop-base", base);
+  root.style.setProperty("--haze-veil", String(veil));
+  root.style.setProperty("--haze-sidebar-opacity", String(glass.sidebarOpacity));
+  root.style.setProperty("--haze-glass-blur", `${glass.blur}px`);
+}
+
+function unpaintBackdrop(): void {
+  const root = document.documentElement;
+  if (!root.dataset.hazeBackdrop) return;
+  delete root.dataset.hazeBackdrop;
+  for (const name of BACKDROP_VARS) root.style.removeProperty(name);
+}
+
+/** Palette commands ask the mounted HazeRoot to save, since only it holds an RPC client. */
+const SET_BACKDROP = "haze:set-backdrop";
+let shownScene: string = "none";
+
+/** Mounted once per window; keeps <html> in sync with the backdrop or the focused project's background. */
 function HazeRoot() {
-  const { snapshot } = useSnapshot();
+  const { rpc, snapshot } = useSnapshot();
   const { projectId } = useBbContext();
   const background = snapshot ? activeBackground(snapshot, projectId) : null;
-  const image = useEffectImage(background?.imageUrl ?? null, background?.settings.effect ?? "none");
+  const scene = sceneById(snapshot?.backdrop.scene);
+  const image = useEffectImage(scene ? null : (background?.imageUrl ?? null), background?.settings.effect ?? "none");
+  const fullImage = !scene && image && background?.settings.fill === "full" ? image : null;
   useEffect(() => {
-    if (snapshot && background) paint(background, image, snapshot.glass);
-  }, [snapshot, background, image]);
+    if (!snapshot || !background) return;
+    shownScene = scene?.id ?? "none";
+    if (scene) return paintBackdrop(scene.id, scene.base, snapshot.backdrop.veil, snapshot.glass);
+    if (fullImage) return paintBackdrop("image", "var(--background)", background.settings.veil, snapshot.glass);
+    unpaintBackdrop();
+    paint(background, image, snapshot.glass);
+  }, [snapshot, background, scene, image, fullImage]);
+  useColorSchemeOverride(scene && snapshot?.backdrop.colorScheme === "scene" ? scene.colorScheme : null);
+  // Reveal a scene the user picks, not the one already on when the window opens.
+  const loaded = useRef(false);
+  useEffect(() => {
+    if (snapshot) loaded.current = true;
+  }, [snapshot]);
+  useEffect(() => {
+    const onSet = (event: Event) => {
+      rpc.call("setBackdrop", (event as CustomEvent<Partial<Backdrop>>).detail).catch(() => {});
+    };
+    window.addEventListener(SET_BACKDROP, onSet);
+    return () => window.removeEventListener(SET_BACKDROP, onSet);
+  }, [rpc]);
   useEffect(
     () => () => {
       unpaint();
+      unpaintBackdrop();
       disposeEffects();
     },
     [],
   );
+  if (!snapshot) return null;
+  if (scene) return <BackdropLayer scene={scene} animate={snapshot.backdrop.motion} reveal={loaded.current} />;
+  if (fullImage && background) {
+    return <ImageBackdrop url={fullImage} haze={background.settings.effect === "gradient-blur"} />;
+  }
   return null;
 }
 
@@ -176,17 +236,19 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 
 function Segmented<T extends string>({
   label,
+  hint,
   value,
   options,
   onChange,
 }: {
   label: string;
+  hint?: string;
   value: T;
   options: [T, string][];
   onChange: (value: T) => void;
 }) {
   return (
-    <Row label={label}>
+    <Row label={label} hint={hint}>
       <div role="group" aria-label={label} className="flex gap-1 rounded-lg border border-border p-0.5">
         {options.map(([option, text]) => (
           <Button
@@ -301,6 +363,7 @@ function Previews({ settings, imageUrl }: { settings: BackgroundSettings; imageU
     <div
       className="haze-preview flex gap-3"
       data-haze={style?.mode}
+      data-fill={settings.fill}
       style={style?.vars as CSSProperties | undefined}
     >
       <figure className="m-0 flex flex-1 flex-col gap-1.5">
@@ -416,13 +479,37 @@ function BackgroundEditor({
           onChange={(effect) => save({ effect })}
         />
         <Segmented
-          label="Show on"
-          value={settings.scope}
-          options={[["all", "All sessions"], ["empty", "Empty chats"]]}
-          onChange={(scope) => save({ scope })}
+          label="Fill"
+          hint={
+            settings.fill === "full"
+              ? "The image fills the whole window, under the header and the composer."
+              : "A haze at the top that fades out before the text."
+          }
+          value={settings.fill}
+          options={[["top", "Top haze"], ["full", "Full screen"]]}
+          onChange={(fill) => save({ fill })}
         />
-        <Slider label="Empty chat visibility" {...slide("emptyOpacity")} />
-        <Slider label="Session visibility" disabled={settings.scope === "empty"} {...slide("sessionOpacity")} />
+        {settings.fill === "full" ? (
+          <Slider
+            label="Reading veil"
+            value={settings.veil}
+            range={VEIL}
+            format={percent}
+            onInput={(veil) => setDraft({ ...settings, veil })}
+            onCommit={() => draft && save({ veil: draft.veil })}
+          />
+        ) : (
+          <>
+            <Segmented
+              label="Show on"
+              value={settings.scope}
+              options={[["all", "All sessions"], ["empty", "Empty chats"]]}
+              onChange={(scope) => save({ scope })}
+            />
+            <Slider label="Empty chat visibility" {...slide("emptyOpacity")} />
+            <Slider label="Session visibility" disabled={settings.scope === "empty"} {...slide("sessionOpacity")} />
+          </>
+        )}
       </fieldset>
     </div>
   );
@@ -469,6 +556,86 @@ function GlassEditor({ glass, busy, rpc, run }: { glass: Glass; busy: boolean; r
   );
 }
 
+function SceneCard({
+  scene,
+  selected,
+  onSelect,
+}: {
+  scene: SceneDefinition | null;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      title={scene?.description ?? "No backdrop: Haze shows your chat background image."}
+      onClick={onSelect}
+      className={cn(
+        "flex w-36 flex-col gap-1.5 rounded-lg border-0 bg-transparent p-1 text-left text-xs outline-none transition-colors",
+        "focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none",
+        selected ? "ring-2 ring-primary" : "hover:bg-muted",
+      )}
+    >
+      <span
+        className="relative block aspect-[16/10] w-full overflow-hidden rounded-md border border-border"
+        style={{ background: scene?.base ?? "var(--background)" }}
+      >
+        {scene ? (
+          <SceneCanvas scene={scene} animate scale={0.3} className="absolute inset-0 size-full" />
+        ) : (
+          <span className="absolute inset-0 grid place-items-center text-muted-foreground">Off</span>
+        )}
+      </span>
+      <span className="px-0.5">
+        {scene?.label ?? "None"}
+        {selected && <span aria-hidden="true"> ✓</span>}
+      </span>
+    </button>
+  );
+}
+
+function BackdropEditor({ backdrop, busy, rpc, run }: { backdrop: Backdrop; busy: boolean; rpc: Rpc; run: (call: Promise<Snapshot>) => void }) {
+  const [veil, setVeil] = useState<number | null>(null);
+  useEffect(() => setVeil(null), [backdrop]);
+  const save = (patch: Partial<Backdrop>) => run(rpc.call("setBackdrop", patch));
+  const scene = sceneById(backdrop.scene);
+  return (
+    <fieldset disabled={busy} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-60">
+      <div role="radiogroup" aria-label="Backdrop scene" className="flex flex-wrap gap-2">
+        <SceneCard scene={null} selected={!scene} onSelect={() => save({ scene: "none" })} />
+        {SCENE_LIST.map((option) => (
+          <SceneCard key={option.id} scene={option} selected={scene?.id === option.id} onSelect={() => save({ scene: option.id })} />
+        ))}
+      </div>
+      <fieldset disabled={!scene} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-50">
+        <Segmented
+          label="Colours"
+          hint={scene ? `${scene.label} is painted for ${scene.colorScheme} mode; Match scene switches BB to it while it shows.` : undefined}
+          value={backdrop.colorScheme}
+          options={[["scene", "Match scene"], ["app", "Keep my theme"]]}
+          onChange={(colorScheme) => save({ colorScheme })}
+        />
+        <Slider
+          label="Reading veil"
+          value={veil ?? backdrop.veil}
+          range={VEIL}
+          format={percent}
+          onInput={setVeil}
+          onCommit={() => veil !== null && save({ veil })}
+        />
+        <Toggle
+          label="Motion"
+          hint="Off holds one still frame. The system's reduced-motion setting also stills it."
+          checked={backdrop.motion}
+          onChange={(motion) => save({ motion })}
+        />
+      </fieldset>
+    </fieldset>
+  );
+}
+
 function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
@@ -507,7 +674,14 @@ function HazeSettingsPage() {
   return (
     <div className="flex max-w-2xl flex-col gap-8">
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <Section title="Chat background" description="Your image at the top of New thread and every conversation, fading out before the text.">
+      <Section
+        title="Backdrop"
+        description="A live scene behind the whole window, from the top of the conversation to under the composer. While one is on it replaces the chat background."
+      >
+        <BackdropEditor backdrop={snapshot.backdrop} busy={busy} rpc={rpc} run={run} />
+      </Section>
+
+      <Section title="Chat background" description="Your image behind New thread and every conversation: a haze at the top that fades before the text, or full screen.">
         <BackgroundEditor target={GLOBAL} background={snapshot.global} fallback={snapshot.global.settings} {...editor} />
       </Section>
 
@@ -539,7 +713,7 @@ function HazeSettingsPage() {
         <Button size="sm" variant="outline" disabled={busy} onClick={() => run(rpc.call("reset", null))}>
           Reset to defaults
         </Button>
-        <p className="mt-1 text-xs text-muted-foreground">Clears the chat background image and window settings. Project backgrounds stay.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Clears the backdrop, the chat background image and window settings. Project backgrounds stay.</p>
       </div>
     </div>
   );
@@ -547,10 +721,27 @@ function HazeSettingsPage() {
 
 export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({ id: "haze-root", component: HazeRoot });
+  const setBackdrop = (detail: Partial<Backdrop>) => {
+    window.dispatchEvent(new CustomEvent(SET_BACKDROP, { detail }));
+  };
+  for (const scene of SCENE_LIST) {
+    app.commands.register({
+      id: `backdrop-${scene.id}`,
+      title: `Haze: ${scene.label} backdrop`,
+      isAvailable: () => shownScene !== scene.id,
+      run: () => setBackdrop({ scene: scene.id }),
+    });
+  }
+  app.commands.register({
+    id: "backdrop-off",
+    title: "Haze: Turn the backdrop off",
+    isAvailable: () => shownScene !== "none",
+    run: () => setBackdrop({ scene: "none" }),
+  });
   app.slots.settingsSection({
     id: "background",
     title: "Background",
-    description: "A MonoCode-style chat background and translucent window.",
+    description: "Live backdrops, a MonoCode-style chat background and a translucent window.",
     component: HazeSettingsPage,
   });
 });

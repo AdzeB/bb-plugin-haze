@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
+  backdropSchema,
   backgroundSettingsSchema,
   glassSchema,
   snapshotSchema,
@@ -32,7 +33,8 @@ export const rpcContract = defineRpcContract({
     output: snapshotSchema,
   },
   setGlass: { input: glassSchema.partial().strict(), output: snapshotSchema },
-  // MonoCode's "Reset appearance": global settings, glass and image back to defaults.
+  setBackdrop: { input: backdropSchema.partial().strict(), output: snapshotSchema },
+  // MonoCode's "Reset appearance": global settings, glass, backdrop and image back to defaults.
   reset: { input: z.null(), output: snapshotSchema },
 });
 
@@ -60,10 +62,15 @@ export default function plugin(bb: BbPluginApi) {
     settings: backgroundSettingsSchema.parse(JSON.parse(row.settings)),
     imageUrl: imageUrl(row),
   });
-  const readGlass = () => {
-    const row = db.prepare("SELECT value FROM kv WHERE key = 'glass'").get() as { value: string } | undefined;
-    return glassSchema.parse(row ? JSON.parse(row.value) : {});
+  const readKv = (key: string): unknown => {
+    const row = db.prepare("SELECT value FROM kv WHERE key = ?").get(key) as { value: string } | undefined;
+    return row ? JSON.parse(row.value) : {};
   };
+  const writeKv = (key: string, value: unknown) =>
+    db.prepare("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
+      .run(key, JSON.stringify(value));
+  const readGlass = () => glassSchema.parse(readKv("glass"));
+  const readBackdrop = () => backdropSchema.parse(readKv("backdrop"));
 
   function read(): Snapshot {
     const rows = db.prepare("SELECT target, settings, mime, version FROM bg").all() as Row[];
@@ -73,7 +80,7 @@ export default function plugin(bb: BbPluginApi) {
       if (row.target === GLOBAL) global = toBackground(row);
       else projects[row.target] = toBackground(row);
     }
-    return { global: global!, projects, glass: readGlass() };
+    return { global: global!, projects, glass: readGlass(), backdrop: readBackdrop() };
   }
   function changed(): Snapshot {
     bb.realtime.publish(CHANGED, null);
@@ -127,14 +134,16 @@ export default function plugin(bb: BbPluginApi) {
       return changed();
     },
     setGlass: (patch) => {
-      const next = glassSchema.parse({ ...readGlass(), ...patch });
-      db.prepare("INSERT INTO kv (key, value) VALUES ('glass', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
-        .run(JSON.stringify(next));
+      writeKv("glass", glassSchema.parse({ ...readGlass(), ...patch }));
+      return changed();
+    },
+    setBackdrop: (patch) => {
+      writeKv("backdrop", backdropSchema.parse({ ...readBackdrop(), ...patch }));
       return changed();
     },
     reset: () => {
       db.prepare("UPDATE bg SET settings = '{}', mime = NULL, version = NULL, bytes = NULL WHERE target = 'global'").run();
-      db.prepare("DELETE FROM kv WHERE key = 'glass'").run();
+      db.prepare("DELETE FROM kv WHERE key IN ('glass', 'backdrop')").run();
       return changed();
     },
   });
