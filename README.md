@@ -26,13 +26,14 @@ Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
   Claude Code mod's [backdrop](https://code.claude.com/docs/en/plugins/mods/interface#put-a-backdrop-behind-the-conversation).
   It fills the conversation from the header to the bottom edge, under the
   composer too, and replaces the chat background while it is on. The first
-  scene is **Cloud Drift**: ASCII cumulus clouds drifting across a bright sky,
-  with flocks of birds flapping past. **Colours** either switches BB to the
-  scene's scheme while it shows (*Match scene*, like Claude Code's
-  `overrideColorScheme`; Cloud Drift is a light scene) or keeps your theme.
-  **Reading veil** (0–80%, default 45%) washes the reading column so text
-  stays legible; **Motion** off holds a still frame. The command palette has
-  *Haze: Cloud Drift backdrop* and *Haze: Turn the backdrop off*.
+  scene is **Cloud Drift**: ASCII cumulus clouds drifting across a bright sky
+  with flocks of birds by day, or a starry night under an ASCII crescent moon.
+  **Mode** picks *Light* or *Dark* (drawing that version and holding BB in the
+  same scheme while it shows, like Claude Code's `overrideColorScheme`) or
+  *Match BB* (follow BB's theme). **Reading veil** (0–80%, default 45%) washes
+  the reading column so text stays legible; **Motion** off holds a still frame.
+  The command palette has *Haze: Cloud Drift backdrop*, *Haze: Switch the
+  backdrop between day and night* and *Haze: Turn the backdrop off*.
 - **Chat background:** image, **Effect** (None, Dither, ASCII, Halftone,
   Scanlines, Haze), **Fill** (*Top haze*, MonoCode's fade at the top of the
   pane, or *Full screen*, the image behind the whole window from the header

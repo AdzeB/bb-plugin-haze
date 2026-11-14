@@ -305,6 +305,17 @@ html[data-haze-backdrop] #thread-detail-timeline-panel [data-page-scroll-viewpor
   background: transparent;
   border-bottom-color: transparent;
 }
+/*
+ * The desktop app outlines the main card with an overlay (a bordered div in
+ * main, plus a hairline after main beside the title bar). Over a scene that
+ * outline reads as a seam under the title bar, so drop it.
+ */
+html[data-haze-backdrop] main[data-sidebar="inset"] > [class~="border-border"][class~="z-50"] {
+  border-color: transparent;
+}
+html[data-haze-backdrop] main[data-sidebar="inset"]::after {
+  background: transparent;
+}
 /* Messages fade out under the header instead of being cut off by it. */
 html[data-haze-backdrop] #thread-detail-timeline-panel [data-page-scroll-viewport] {
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 1.5rem);

@@ -1,8 +1,9 @@
-// Cloud Drift: a bright sky with ASCII cumulus clouds drifting across it and
-// small flocks of birds flapping (v / ^) through. Each cloud is a grid of
-// white character cells with a scatter of faint glyphs around its edge; a few
-// glyphs change every half second so the clouds shimmer while they move.
-import { pick, random, type SceneDefinition, type SceneInstance } from "./types";
+// Cloud Drift: ASCII cumulus clouds drifting across the sky. Each cloud is a
+// grid of character cells with a scatter of faint glyphs around its edge; a
+// few glyphs change every half second so the clouds shimmer while they move.
+// By day the sky is bright and flocks of birds flap (v / ^) through; by night
+// it is deep blue, stars twinkle and an ASCII crescent moon hangs up high.
+import { pick, random, type Scheme, type SceneDefinition, type SceneInstance } from "./types";
 
 const CW = 13; // cell width, CSS px
 const CH = 18; // cell height
@@ -12,13 +13,44 @@ const BIRD_FONT = "600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monos
 const GLYPHS = [":", ":", ";", ";", ":", "t", "t", "%", "%", "'"];
 const HALO = [".", ".", ",", "o", "°", ":", "'", "~"];
 
-const SKY_TOP = "#68baee";
-const SKY_BOTTOM = "#abddfa";
-const CELL = "rgba(255, 255, 255, 0.94)";
-const INK = "#97a3b0";
-const BLUSH = "#d39ba5";
-const HALO_INK = "rgba(255, 255, 255, 0.85)";
-const BIRD_INK = "rgba(58, 98, 136, 0.6)";
+interface Palette {
+  skyTop: string;
+  skyBottom: string;
+  cell: string;
+  ink: string;
+  blush: string;
+  halo: string;
+  bird: string | null; // null: no birds
+  star: string | null; // null: no stars or moon
+}
+
+const PALETTES: Record<Scheme, Palette> = {
+  light: {
+    skyTop: "#68baee",
+    skyBottom: "#abddfa",
+    cell: "rgba(255, 255, 255, 0.94)",
+    ink: "#97a3b0",
+    blush: "#d39ba5",
+    halo: "rgba(255, 255, 255, 0.85)",
+    bird: "rgba(58, 98, 136, 0.6)",
+    star: null,
+  },
+  dark: {
+    skyTop: "#0a1430",
+    skyBottom: "#1e3163",
+    cell: "rgba(104, 124, 190, 0.42)",
+    ink: "#cdd6f6",
+    blush: "#f0b8cf",
+    halo: "rgba(176, 194, 240, 0.5)",
+    bird: null,
+    star: "#e3e9ff",
+  },
+};
+
+const STAR_GLYPHS = [".", ".", ".", "\u00b7", "+", "*"];
+const MOON_CELL = "rgba(236, 222, 170, 0.88)";
+const MOON_INK = "#7d6d45";
+const MOON_GLYPHS = [":", "t", "%", ";", "'"];
 
 const EMPTY = 0;
 const CLOUD = 1;
@@ -47,13 +79,25 @@ interface Flock {
   birds: { dx: number; dy: number; phase: number }[];
 }
 
-function create(seed: number): SceneInstance {
+interface Star {
+  x: number; // 0..1 of the width
+  y: number; // 0..1 of the height
+  glyph: string;
+  phase: number;
+  speed: number;
+}
+
+function create(seed: number, scheme: Scheme): SceneInstance {
   const rand = random(seed);
+  const palette = PALETTES[scheme];
   let width = 0;
   let height = 0;
   let dpr = 1;
   let clouds: Cloud[] = [];
   let flocks: Flock[] = [];
+  let stars: Star[] = [];
+  const moon = document.createElement("canvas");
+  const MOON_ROWS = 11;
   let sky: CanvasGradient | null = null;
   let skyHeight = 0;
   let last: number | null = null;
@@ -128,12 +172,12 @@ function create(seed: number): SceneInstance {
         const x = c * CW;
         const y = r * CH;
         if (cloud.kind[i] === CLOUD) {
-          ctx.fillStyle = CELL;
+          ctx.fillStyle = palette.cell;
           ctx.fillRect(x + 0.5, y + 0.5, CW - 1, CH - 1);
-          ctx.fillStyle = cloud.tint[i] ? BLUSH : INK;
+          ctx.fillStyle = cloud.tint[i] ? palette.blush : palette.ink;
           ctx.fillText(cloud.glyph[i]!, x + CW / 2, y + CH / 2 + 0.5);
         } else if (cloud.glyph[i]) {
-          ctx.fillStyle = HALO_INK;
+          ctx.fillStyle = palette.halo;
           ctx.fillText(cloud.glyph[i]!, x + CW / 2, y + CH / 2 + 0.5);
         }
       }
@@ -185,11 +229,54 @@ function create(seed: number): SceneInstance {
     };
   }
 
+  /** An ASCII crescent: a disc of warm cells with a second, offset disc cut out of it. */
+  function renderMoon() {
+    const rows = MOON_ROWS;
+    const cols = Math.ceil((rows * CH) / CW) + 1;
+    moon.width = Math.ceil(cols * CW * dpr);
+    moon.height = Math.ceil(rows * CH * dpr);
+    const ctx = moon.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.font = FONT;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const glyphs = random(seed ^ 0x9e3779b9);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        // Cells are taller than wide; measure in cell heights so the disc stays round.
+        const dx = ((c + 0.5 - cols / 2) * CW) / CH;
+        const dy = r + 0.5 - rows / 2;
+        const disc = dx * dx + dy * dy <= 20;
+        const bite = (dx - 2) ** 2 + (dy + 0.9) ** 2 <= 13;
+        if (!disc || bite) continue;
+        ctx.fillStyle = MOON_CELL;
+        ctx.fillRect(c * CW + 0.5, r * CH + 0.5, CW - 1, CH - 1);
+        ctx.fillStyle = MOON_INK;
+        ctx.fillText(pick(glyphs, MOON_GLYPHS), c * CW + CW / 2, r * CH + CH / 2 + 0.5);
+      }
+    }
+  }
+
+  function makeStars() {
+    const count = Math.max(60, Math.min(400, Math.round((width * height) / 7000)));
+    stars = Array.from({ length: count }, () => ({
+      x: rand(),
+      y: rand() * 0.9,
+      glyph: pick(rand, STAR_GLYPHS),
+      phase: rand() * Math.PI * 2,
+      speed: 0.6 + rand() * 1.8,
+    }));
+  }
+
   function build() {
     // One cloud per horizontal band, each at a random x, so the sky fills evenly.
     clouds = Array.from({ length: bands() }, (_, band) => makeCloud(band));
     clouds.sort((a, b) => a.alpha - b.alpha); // far (fainter) clouds first
-    flocks = Array.from({ length: width > 900 ? 2 : 1 }, () => makeFlock(false));
+    flocks = palette.bird ? Array.from({ length: width > 900 ? 2 : 1 }, () => makeFlock(false)) : [];
+    if (palette.star) {
+      makeStars();
+      renderMoon();
+    }
   }
 
   return {
@@ -207,6 +294,7 @@ function create(seed: number): SceneInstance {
         cloud.y *= scaleY;
         if (rerender) render(cloud);
       }
+      if (rerender && palette.star) renderMoon();
       for (const flock of flocks) {
         flock.x *= scaleX;
         flock.baseY *= scaleY;
@@ -219,13 +307,28 @@ function create(seed: number): SceneInstance {
 
       if (!sky || skyHeight !== height) {
         sky = ctx.createLinearGradient(0, 0, 0, height);
-        sky.addColorStop(0, SKY_TOP);
-        sky.addColorStop(1, SKY_BOTTOM);
+        sky.addColorStop(0, palette.skyTop);
+        sky.addColorStop(1, palette.skyBottom);
         skyHeight = height;
       }
       ctx.globalAlpha = 1;
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, width, height);
+
+      if (palette.star) {
+        ctx.font = BIRD_FONT;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = palette.star;
+        for (const star of stars) {
+          ctx.globalAlpha = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(time * star.speed + star.phase));
+          ctx.fillText(star.glyph, Math.round(star.x * width), Math.round(star.y * height));
+        }
+        // The moon sits behind the clouds, so they drift across it.
+        ctx.globalAlpha = 1;
+        const moonY = height * 0.1 + Math.sin(time * 0.2) * 3;
+        ctx.drawImage(moon, Math.round(width * 0.8), Math.round(moonY), moon.width / dpr, moon.height / dpr);
+      }
 
       for (const cloud of clouds) {
         cloud.x += cloud.speed * dt;
@@ -245,11 +348,12 @@ function create(seed: number): SceneInstance {
         ctx.drawImage(cloud.sprite, x, y, cloud.cols * CW, cloud.rows * CH);
       }
 
+      if (!palette.bird) return;
       ctx.globalAlpha = 1;
       ctx.font = BIRD_FONT;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = BIRD_INK;
+      ctx.fillStyle = palette.bird;
       flocks = flocks.map((flock) => {
         flock.x += flock.vx * dt;
         if (flock.x > width + 120) return makeFlock(true);
@@ -267,9 +371,11 @@ function create(seed: number): SceneInstance {
 export const cloudDrift: SceneDefinition = {
   id: "cloud-drift",
   label: "Cloud Drift",
-  description: "ASCII clouds drift across a bright sky while birds flap past.",
-  colorScheme: "light",
-  base: "#8ccbf3",
+  description: {
+    light: "ASCII clouds drift across a bright sky while birds flap past.",
+    dark: "ASCII clouds drift across a starry night under a crescent moon.",
+  },
+  base: { light: "#8ccbf3", dark: "#13224a" },
   fps: 30,
   create,
 };
