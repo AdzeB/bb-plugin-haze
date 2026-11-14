@@ -44,7 +44,9 @@ Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
 - **Sidebar:** how the sidebar sits over a backdrop, a full-screen image or
   window glass. **Layout** *Edge to edge* (default) runs it to the desktop
   app's top, leading and bottom edges, under the title bar, like a macOS
-  sidebar; *Inset* keeps BB's card with its 8 px gutter. **Opacity** 0–100%
+  sidebar; *Inset* keeps BB's card with its 8 px gutter. **Top spacing**
+  (0–60 px, default 24 px) sets how far below the window's top edge the
+  edge-to-edge sidebar's list starts. **Opacity** 0–100%
   (default 85%) and **Blur radius** (default 24 px). With Reduce transparency
   on, the sidebar stays solid.
 - **Project backgrounds:** a project can have its own image and settings. Panes
