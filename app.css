@@ -293,9 +293,11 @@ html:is([data-haze-backdrop], [data-haze-glass]) [class~="group/sidebar-wrapper"
   background: transparent;
 }
 /*
- * Edge-to-edge sidebar (desktop app). BB frames the window: the sidebar is a
+ * Edge-to-edge layout (desktop app). BB frames the window: the sidebar is a
  * card inset 8px from the window's leading and bottom edges and starting
- * below the 44px title bar, so the scene shows through a gutter around it.
+ * below the 44px title bar, and the content card stops 8px short of the
+ * right and bottom edges, so a gutter of frame colour (or the scene) runs
+ * around both.
  * Following the macOS HIG, the sidebar instead runs the full height of the
  * window to its leading edge, under the title bar (the traffic lights sit on
  * it), keeps its content below the title bar, and meets the content area at
@@ -303,6 +305,14 @@ html:is([data-haze-backdrop], [data-haze-glass]) [class~="group/sidebar-wrapper"
  */
 html[data-haze-sidebar="edge"] [data-framed][class~="group/sidebar-wrapper"] {
   --bb-window-frame-leading-lip: 0px;
+  /*
+   * The content card's 8px frame lip on the right and bottom goes too, so the
+   * card meets the window's edges the way the sidebar does (and Settings has
+   * no strip of frame colour along the bottom). Only the padding changes:
+   * BB positions its title-bar controls from --bb-window-frame-lip.
+   */
+  padding-right: 0;
+  padding-bottom: 0;
 }
 html[data-haze-sidebar="edge"] [data-framed] [data-sidebar="panel"] {
   top: 0;
