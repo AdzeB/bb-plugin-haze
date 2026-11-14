@@ -279,7 +279,7 @@ async function toDataUrl(file: File): Promise<string> {
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="haze-row flex items-center justify-between gap-4">
       <span className="flex flex-col text-sm">
         {label}
         {hint && <span className="text-xs text-muted-foreground">{hint}</span>}

@@ -327,7 +327,10 @@ function create(seed: number, scheme: Scheme): SceneInstance {
         // The moon sits behind the clouds, so they drift across it.
         ctx.globalAlpha = 1;
         const moonY = height * 0.1 + Math.sin(time * 0.2) * 3;
-        ctx.drawImage(moon, Math.round(width * 0.8), Math.round(moonY), moon.width / dpr, moon.height / dpr);
+        // Upper right, but always whole on screen (a phone is narrower than the moon's 80% mark allows).
+        const moonWidth = moon.width / dpr;
+        const moonX = Math.max(8, Math.min(width * 0.8, width - moonWidth - 12));
+        ctx.drawImage(moon, Math.round(moonX), Math.round(moonY), moonWidth, moon.height / dpr);
       }
 
       for (const cloud of clouds) {
