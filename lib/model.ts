@@ -84,6 +84,9 @@ export const backdropSchema = z.object({
     .default("light"),
   veil: ranged(VEIL),
   motion: z.boolean().default(true),
+  // Where a backdrop (or a full-screen image) shows: only behind conversations
+  // (New thread and threads), or behind Settings and every other page too.
+  reach: z.enum(["conversations", "everywhere"]).default("conversations"),
 });
 export type Backdrop = z.infer<typeof backdropSchema>;
 

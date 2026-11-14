@@ -449,19 +449,53 @@ html:is([data-haze-backdrop], [data-haze-glass="body"]) [data-scroll-footer] > .
 }
 
 /*
- * Settings: no scene. Settings are for reading and changing things, so the
- * backdrop (and a full-screen image) steps aside there: the canvas is taken
- * down and BB's own window frame and backgrounds come back, title bar
- * included. Layout choices such as the edge-to-edge sidebar still apply.
+ * Show on: Conversations (the default). Off New thread and conversations, the
+ * backdrop (or a full-screen image) steps aside: the canvas is taken down
+ * (and stops drawing) and BB's own window frame and backgrounds come back,
+ * title bar included, so Settings and other pages read as plain BB. Layout
+ * choices such as the edge-to-edge sidebar still apply. A screen counts as a
+ * conversation by its URL (data-haze-page, set by HazeRoot) or because it
+ * shows a conversation pane, so splits and thread loading keep the scene.
  * `revert-layer` hands each property back to BB's layered styles.
  */
-html[data-haze-backdrop][data-haze-page="settings"] .haze-backdrop {
+html[data-haze-backdrop]:not([data-haze-reach="everywhere"]):not([data-haze-page="conversation"]):not(:has(#thread-detail-timeline-panel, #root-compose-main-panel)) .haze-backdrop {
   display: none;
 }
-html[data-haze-backdrop][data-haze-page="settings"],
-html[data-haze-backdrop][data-haze-page="settings"] body,
-html[data-haze-backdrop][data-haze-page="settings"] [class~="group/sidebar-wrapper"] {
+html[data-haze-backdrop]:not([data-haze-reach="everywhere"]):not([data-haze-page="conversation"]):not(:has(#thread-detail-timeline-panel, #root-compose-main-panel)),
+html[data-haze-backdrop]:not([data-haze-reach="everywhere"]):not([data-haze-page="conversation"]):not(:has(#thread-detail-timeline-panel, #root-compose-main-panel)) body,
+html[data-haze-backdrop]:not([data-haze-reach="everywhere"]):not([data-haze-page="conversation"]):not(:has(#thread-detail-timeline-panel, #root-compose-main-panel)) [class~="group/sidebar-wrapper"] {
   background: revert-layer;
+}
+
+/*
+ * Show on: Everywhere. Settings and other pages open onto the scene too. The
+ * page's cards and controls keep their own solid surfaces; behind them the
+ * whole page gets a stronger wash than a conversation's column (veil + 25%),
+ * since these pages are dense and often several columns wide, and the page
+ * header turns clear like the thread header. Plugin pages that paint their
+ * own panes keep them.
+ */
+html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"] {
+  background: transparent;
+  isolation: isolate;
+}
+html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"]::before {
+  background: transparent;
+}
+html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"]:not(:has(#thread-detail-timeline-panel, #root-compose-main-panel))::before {
+  --haze-page-veil: color-mix(in oklab, var(--background) calc(min(1, var(--haze-veil, 0.45) + 0.25) * 100%), transparent);
+  content: "";
+  position: absolute;
+  inset: var(--bb-window-title-bar-height, 0px) 0 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--haze-page-veil);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 5rem);
+  mask-image: linear-gradient(to bottom, transparent, #000 5rem);
+}
+html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"] [class~="@container/page-header"] {
+  background: transparent;
+  border-bottom-color: transparent;
 }
 
 /*
