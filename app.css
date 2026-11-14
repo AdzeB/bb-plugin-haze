@@ -321,6 +321,13 @@ html[data-haze-backdrop] :is(#root-compose-main-panel, #thread-detail-timeline-p
   pointer-events: none;
   background: linear-gradient(to right, transparent, var(--haze-veil-color) 14%, var(--haze-veil-color) 86%, transparent)
     center / min(100%, 56rem) 100% no-repeat;
+  /*
+   * Fade in from the top and out at the bottom, so the pane's edges never cut
+   * a line across the picture. The desktop app's title bar sits above the
+   * pane; without this the scene there was brighter than just below it.
+   */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 7rem, #000 calc(100% - 3rem), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 7rem, #000 calc(100% - 3rem), transparent);
 }
 
 /*
