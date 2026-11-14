@@ -292,6 +292,19 @@ html[data-haze-backdrop] :is([data-sidebar="panel"], [data-sidebar="content"]) {
 html:is([data-haze-backdrop], [data-haze-glass]) [class~="group/sidebar-wrapper"] {
   background: transparent;
 }
+/* The framed sidebar is a card of its own (bg-sidebar); the sidebar's glass tint replaces it. */
+html:is([data-haze-backdrop], [data-haze-glass]) [data-sidebar="collapsible-body"] {
+  background: transparent;
+}
+/*
+ * BB's overflow fades: strips of solid theme colour at the edges of a
+ * scrolled pane (under the thread header once you scroll up, above the
+ * composer). Over a scene or glass they read as a dark or pale bar, so drop
+ * them; the masks on the scroll viewport and the composer frost do the fading.
+ */
+html:is([data-haze-backdrop], [data-haze-glass="body"]) main[data-sidebar="inset"] [data-overflow-fade][data-overflow-fade-tone="background"] {
+  background: none;
+}
 html[data-haze-backdrop] [data-sidebar="sidebar"] {
   background: color-mix(in oklab, var(--sidebar) calc(var(--haze-sidebar-opacity, 0.85) * 100%), transparent);
   -webkit-backdrop-filter: blur(var(--haze-glass-blur, 24px));
