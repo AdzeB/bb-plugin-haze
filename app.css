@@ -292,6 +292,32 @@ html[data-haze-backdrop] :is([data-sidebar="panel"], [data-sidebar="content"]) {
 html:is([data-haze-backdrop], [data-haze-glass]) [class~="group/sidebar-wrapper"] {
   background: transparent;
 }
+/*
+ * Edge-to-edge sidebar (desktop app). BB frames the window: the sidebar is a
+ * card inset 8px from the window's leading and bottom edges and starting
+ * below the 44px title bar, so the scene shows through a gutter around it.
+ * Following the macOS HIG, the sidebar instead runs the full height of the
+ * window to its leading edge, under the title bar (the traffic lights sit on
+ * it), keeps its content below the title bar, and meets the content area at
+ * a hairline separator. Only the browser-less, framed layout has the gutter.
+ */
+html[data-haze-sidebar="edge"] [data-framed][class~="group/sidebar-wrapper"] {
+  --bb-window-frame-leading-lip: 0px;
+}
+html[data-haze-sidebar="edge"] [data-framed] [data-sidebar="panel"] {
+  top: 0;
+  height: var(--bb-shell-height, 100dvh);
+}
+html[data-haze-sidebar="edge"] [data-framed] [data-sidebar="sidebar"] {
+  padding-top: var(--bb-window-title-bar-height, 0px);
+  box-shadow: inset -1px 0 0 color-mix(in oklab, var(--border) 70%, transparent);
+}
+html[data-haze-sidebar="edge"] [data-framed] :is([data-sidebar="collapsible-body"], [data-testid="sidebar-footer-body"]) {
+  border-width: 0;
+  border-radius: 0;
+  clip-path: none;
+}
+
 /* The framed sidebar is a card of its own (bg-sidebar); the sidebar's glass tint replaces it. */
 html:is([data-haze-backdrop], [data-haze-glass]) [data-sidebar="collapsible-body"] {
   background: transparent;
@@ -388,6 +414,23 @@ html[data-haze-backdrop] [data-scroll-footer] > .bg-background::before {
  */
 html:is([data-haze-backdrop], [data-haze-glass="body"]) [data-scroll-footer] > .bg-background > .bg-gradient-to-b {
   display: none;
+}
+
+/*
+ * Reduce transparency (macOS Accessibility, and other systems): the HIG asks
+ * for solid surfaces, so the sidebar and main pane glass go opaque and stop
+ * blurring. The scene still shows in the conversation, where the veil is.
+ */
+@media (prefers-reduced-transparency: reduce) {
+  html:is([data-haze-backdrop], [data-haze-glass]) [data-sidebar="sidebar"] {
+    background: var(--sidebar);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  html[data-haze-glass="body"] main[data-sidebar="inset"]:not(.bg-transparent),
+  html[data-haze-glass="body"] main[data-sidebar="inset"]::before {
+    background: var(--background);
+  }
 }
 
 /* Settings preview panes. */

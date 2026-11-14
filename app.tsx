@@ -123,12 +123,14 @@ function paint(background: Background, image: string | null, glass: Glass | null
   for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
   if (glass?.enabled) {
     root.dataset.hazeGlass = glass.body ? "body" : "sidebar";
+    root.dataset.hazeSidebar = glass.sidebarEdge ? "edge" : "inset";
     // The window shows the original artwork, like the desktop behind MonoCode.
     root.style.setProperty("--haze-window-image", `url("${background.imageUrl}")`);
     root.style.setProperty("--haze-sidebar-opacity", String(glass.sidebarOpacity));
     root.style.setProperty("--haze-glass-blur", `${glass.blur}px`);
   } else {
     delete root.dataset.hazeGlass;
+    delete root.dataset.hazeSidebar;
   }
 }
 
@@ -136,6 +138,7 @@ function unpaint(): void {
   const root = document.documentElement;
   delete root.dataset.haze;
   delete root.dataset.hazeGlass;
+  delete root.dataset.hazeSidebar;
   for (const name of VARS) root.style.removeProperty(name);
 }
 
@@ -153,12 +156,14 @@ function paintBackdrop(id: string, base: string, veil: number, glass: Glass): vo
   root.style.setProperty("--haze-veil", String(veil));
   root.style.setProperty("--haze-sidebar-opacity", String(glass.sidebarOpacity));
   root.style.setProperty("--haze-glass-blur", `${glass.blur}px`);
+  root.dataset.hazeSidebar = glass.sidebarEdge ? "edge" : "inset";
 }
 
 function unpaintBackdrop(): void {
   const root = document.documentElement;
   if (!root.dataset.hazeBackdrop) return;
   delete root.dataset.hazeBackdrop;
+  delete root.dataset.hazeSidebar;
   for (const name of BACKDROP_VARS) root.style.removeProperty(name);
 }
 
@@ -524,40 +529,60 @@ function BackgroundEditor({
   );
 }
 
-function GlassEditor({ glass, busy, rpc, run }: { glass: Glass; busy: boolean; rpc: Rpc; run: (call: Promise<Snapshot>) => void }) {
+/** Sidebar layout and material. Applies under window glass, a backdrop or a full-screen image. */
+function SidebarEditor({ glass, busy, rpc, run }: { glass: Glass; busy: boolean; rpc: Rpc; run: (call: Promise<Snapshot>) => void }) {
   const [draft, setDraft] = useState<Glass | null>(null);
   const value = draft ?? glass;
   useEffect(() => setDraft(null), [glass]);
   const save = (patch: Partial<Glass>) => run(rpc.call("setGlass", patch));
   return (
     <fieldset disabled={busy} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-60">
+      <Segmented
+        label="Layout"
+        hint={
+          value.sidebarEdge
+            ? "Desktop app: the sidebar runs to the window's edges, under the title bar, like a macOS sidebar."
+            : "Desktop app: BB's inset sidebar card, with a gap around it."
+        }
+        value={value.sidebarEdge ? "edge" : "inset"}
+        options={[["edge", "Edge to edge"], ["inset", "Inset"]]}
+        onChange={(layout) => save({ sidebarEdge: layout === "edge" })}
+      />
+      <Slider
+        label="Opacity"
+        value={value.sidebarOpacity}
+        range={SIDEBAR_OPACITY}
+        format={percent}
+        onInput={(sidebarOpacity) => setDraft({ ...value, sidebarOpacity })}
+        onCommit={() => draft && save({ sidebarOpacity: draft.sidebarOpacity })}
+      />
+      <Slider
+        label="Blur radius"
+        value={value.blur}
+        range={BLUR}
+        format={(px) => `${px}px`}
+        onInput={(blur) => setDraft({ ...value, blur })}
+        onCommit={() => draft && save({ blur: draft.blur })}
+      />
+    </fieldset>
+  );
+}
+
+function GlassEditor({ glass, busy, rpc, run }: { glass: Glass; busy: boolean; rpc: Rpc; run: (call: Promise<Snapshot>) => void }) {
+  const save = (patch: Partial<Glass>) => run(rpc.call("setGlass", patch));
+  return (
+    <fieldset disabled={busy} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-60">
       <Toggle
         label="Window glass"
         hint="Draws the background across the whole window, behind the sidebar and every pane."
-        checked={value.enabled}
+        checked={glass.enabled}
         onChange={(enabled) => save({ enabled })}
       />
-      <fieldset disabled={!value.enabled} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-50">
-        <Slider
-          label="Sidebar opacity"
-          value={value.sidebarOpacity}
-          range={SIDEBAR_OPACITY}
-          format={percent}
-          onInput={(sidebarOpacity) => setDraft({ ...value, sidebarOpacity })}
-          onCommit={() => draft && save({ sidebarOpacity: draft.sidebarOpacity })}
-        />
-        <Slider
-          label="Blur radius"
-          value={value.blur}
-          range={BLUR}
-          format={(px) => `${px}px`}
-          onInput={(blur) => setDraft({ ...value, blur })}
-          onCommit={() => draft && save({ blur: draft.blur })}
-        />
+      <fieldset disabled={!glass.enabled} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-50">
         <Toggle
           label="Main pane glass"
           hint="Lets the window show through the conversation area too."
-          checked={value.body}
+          checked={glass.body}
           onChange={(body) => save({ body })}
         />
       </fieldset>
@@ -710,6 +735,13 @@ function HazeSettingsPage() {
 
       <Section title="Window" description="MonoCode's translucent window, with your background in place of the desktop.">
         <GlassEditor glass={snapshot.glass} busy={busy} rpc={rpc} run={run} />
+      </Section>
+
+      <Section
+        title="Sidebar"
+        description="How the sidebar sits over a backdrop, a full-screen image or window glass. With Reduce transparency on in macOS, it stays solid."
+      >
+        <SidebarEditor glass={snapshot.glass} busy={busy} rpc={rpc} run={run} />
       </Section>
 
       {projects.length > 0 && (
