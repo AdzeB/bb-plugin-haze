@@ -40,8 +40,13 @@ Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
   to below the composer, with its own **Reading veil**), **Show on** (all sessions or empty chats), and separate
   visibility for empty chats and sessions (5–65%, default 24%). These are
   MonoCode's names, ranges and defaults.
-- **Window:** window glass, sidebar opacity (default 85%), blur radius (default
-  24 px) and main pane glass (the workspace at 40%).
+- **Window:** window glass and main pane glass (the workspace at 40%).
+- **Sidebar:** how the sidebar sits over a backdrop, a full-screen image or
+  window glass. **Layout** *Edge to edge* (default) runs it to the desktop
+  app's top, leading and bottom edges, under the title bar, like a macOS
+  sidebar; *Inset* keeps BB's card with its 8 px gutter. **Opacity** 0–100%
+  (default 85%) and **Blur radius** (default 24 px). With Reduce transparency
+  on, the sidebar stays solid.
 - **Project backgrounds:** a project can have its own image and settings. Panes
   in the focused project use it; other projects use the chat background.
 - **Reset to defaults.**

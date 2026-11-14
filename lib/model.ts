@@ -23,7 +23,7 @@ export const EFFECT_DESCRIPTIONS: Record<Effect, string> = {
 };
 
 export const OPACITY = { min: 0.05, max: 0.65, default: 0.24 };
-export const SIDEBAR_OPACITY = { min: 0.15, max: 1, default: 0.85 };
+export const SIDEBAR_OPACITY = { min: 0, max: 1, default: 0.85 };
 /** The column wash behind the text, so a busy backdrop or full-screen image stays readable. */
 export const VEIL = { min: 0, max: 0.8, default: 0.45 };
 export const BLUR = { min: 1, max: 64, default: 24 };
@@ -51,6 +51,9 @@ export type BackgroundSettings = z.infer<typeof backgroundSettingsSchema>;
 export const glassSchema = z.object({
   enabled: z.boolean().default(true),
   sidebarOpacity: ranged(SIDEBAR_OPACITY),
+  // Desktop app: run the sidebar to the window's top, leading and bottom edges
+  // (a macOS source list) instead of BB's inset card with a gap around it.
+  sidebarEdge: z.boolean().default(true),
   blur: ranged(BLUR),
   // MonoCode's "main pane glass": the workspace at 40% over the window.
   body: z.boolean().default(true),
