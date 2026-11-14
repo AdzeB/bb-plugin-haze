@@ -173,7 +173,13 @@ html[data-haze-glass] [data-sidebar="sidebar"] {
   background: color-mix(in oklab, var(--sidebar) calc(var(--haze-sidebar-opacity, 0.85) * 100%), transparent);
   transition: background-color 120ms var(--haze-ease);
 }
-html[data-haze-glass="body"] main[data-sidebar="inset"] {
+/*
+ * In the desktop app the main pane is framed: the element itself is
+ * transparent (it reaches up under the title bar) and its rounded card is a
+ * ::before painted with bg-background. Tint that card instead of the element.
+ */
+html[data-haze-glass="body"] main[data-sidebar="inset"]:not(.bg-transparent),
+html[data-haze-glass="body"] main[data-sidebar="inset"]::before {
   background: color-mix(in oklab, var(--background) 40%, transparent);
 }
 /*
@@ -293,6 +299,7 @@ html[data-haze-backdrop] [data-sidebar="sidebar"] {
 }
 /* Only conversation screens open onto the scene; Settings and plugin pages stay solid. */
 html[data-haze-backdrop] main[data-sidebar="inset"]:has(#thread-detail-timeline-panel, #root-compose-main-panel),
+html[data-haze-backdrop] main[data-sidebar="inset"]:has(#thread-detail-timeline-panel, #root-compose-main-panel)::before,
 html[data-haze-backdrop] #thread-detail-timeline-panel > [data-split-pane-id] > header,
 html[data-haze-backdrop] #thread-detail-timeline-panel [data-page-scroll-viewport] {
   background: transparent;
