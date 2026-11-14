@@ -309,13 +309,35 @@ html[data-haze-sidebar="edge"] [data-framed] [data-sidebar="panel"] {
   height: var(--bb-shell-height, 100dvh);
 }
 html[data-haze-sidebar="edge"] [data-framed] [data-sidebar="sidebar"] {
-  padding-top: var(--bb-window-title-bar-height, 0px);
+  /* Settings → Sidebar → Top spacing; BB's own list padding sits below it. */
+  padding-top: var(--haze-sidebar-top, var(--bb-window-title-bar-height, 0px));
   box-shadow: inset -1px 0 0 color-mix(in oklab, var(--border) 70%, transparent);
 }
 html[data-haze-sidebar="edge"] [data-framed] :is([data-sidebar="collapsible-body"], [data-testid="sidebar-footer-body"]) {
   border-width: 0;
   border-radius: 0;
   clip-path: none;
+}
+
+/*
+ * The sidebar's own fills. BB paints solid bg-sidebar on parts of the
+ * sidebar (the framed card, the footer) and fades the list into that solid
+ * colour above the footer. Over the translucent sidebar these read as a
+ * darker band and a shadow at the bottom. Clear them, and fade the list
+ * itself out with a mask where BB had its fades.
+ */
+html:is([data-haze-backdrop], [data-haze-glass]) [data-sidebar="sidebar"] :is([class~="bg-sidebar"], [data-overflow-fade-tone="sidebar"]) {
+  background: none;
+}
+html:is([data-haze-backdrop], [data-haze-glass]) [data-sidebar="sidebar"] :has(+ * > [data-overflow-fade="above"][data-overflow-fade-tone="sidebar"]) {
+  --haze-fade-end: 1.5rem;
+}
+html:is([data-haze-backdrop], [data-haze-glass]) [data-sidebar="sidebar"] :has(> [data-overflow-fade="below"][data-overflow-fade-tone="sidebar"]) + * {
+  --haze-fade-start: 1.5rem;
+}
+html:is([data-haze-backdrop], [data-haze-glass]) [data-sidebar="sidebar"] :is(:has(+ * > [data-overflow-fade="above"][data-overflow-fade-tone="sidebar"]), :has(> [data-overflow-fade="below"][data-overflow-fade-tone="sidebar"]) + *) {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--haze-fade-start, 0px), #000 calc(100% - var(--haze-fade-end, 0px)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--haze-fade-start, 0px), #000 calc(100% - var(--haze-fade-end, 0px)), transparent);
 }
 
 /* The framed sidebar is a card of its own (bg-sidebar); the sidebar's glass tint replaces it. */

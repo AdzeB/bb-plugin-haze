@@ -19,6 +19,7 @@ import {
   EFFECTS,
   OPACITY,
   SIDEBAR_OPACITY,
+  SIDEBAR_TOP,
   VEIL,
   type Backdrop,
   type Background,
@@ -113,6 +114,7 @@ const VARS = [
   "--haze-window-image",
   "--haze-sidebar-opacity",
   "--haze-glass-blur",
+  "--haze-sidebar-top",
 ];
 
 function paint(background: Background, image: string | null, glass: Glass | null): void {
@@ -124,6 +126,7 @@ function paint(background: Background, image: string | null, glass: Glass | null
   if (glass?.enabled) {
     root.dataset.hazeGlass = glass.body ? "body" : "sidebar";
     root.dataset.hazeSidebar = glass.sidebarEdge ? "edge" : "inset";
+    root.style.setProperty("--haze-sidebar-top", `${glass.sidebarTop}px`);
     // The window shows the original artwork, like the desktop behind MonoCode.
     root.style.setProperty("--haze-window-image", `url("${background.imageUrl}")`);
     root.style.setProperty("--haze-sidebar-opacity", String(glass.sidebarOpacity));
@@ -142,7 +145,7 @@ function unpaint(): void {
   for (const name of VARS) root.style.removeProperty(name);
 }
 
-const BACKDROP_VARS = ["--haze-backdrop-base", "--haze-veil", "--haze-sidebar-opacity", "--haze-glass-blur"];
+const BACKDROP_VARS = ["--haze-backdrop-base", "--haze-veil", "--haze-sidebar-opacity", "--haze-glass-blur", "--haze-sidebar-top"];
 
 /**
  * Something drawn behind the whole window: a scene (`id` is its id) or a
@@ -157,6 +160,7 @@ function paintBackdrop(id: string, base: string, veil: number, glass: Glass): vo
   root.style.setProperty("--haze-sidebar-opacity", String(glass.sidebarOpacity));
   root.style.setProperty("--haze-glass-blur", `${glass.blur}px`);
   root.dataset.hazeSidebar = glass.sidebarEdge ? "edge" : "inset";
+  root.style.setProperty("--haze-sidebar-top", `${glass.sidebarTop}px`);
 }
 
 function unpaintBackdrop(): void {
@@ -547,6 +551,15 @@ function SidebarEditor({ glass, busy, rpc, run }: { glass: Glass; busy: boolean;
         value={value.sidebarEdge ? "edge" : "inset"}
         options={[["edge", "Edge to edge"], ["inset", "Inset"]]}
         onChange={(layout) => save({ sidebarEdge: layout === "edge" })}
+      />
+      <Slider
+        label="Top spacing"
+        disabled={!value.sidebarEdge}
+        value={value.sidebarTop}
+        range={SIDEBAR_TOP}
+        format={(px) => `${px}px`}
+        onInput={(sidebarTop) => setDraft({ ...value, sidebarTop })}
+        onCommit={() => draft && save({ sidebarTop: draft.sidebarTop })}
       />
       <Slider
         label="Opacity"

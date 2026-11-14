@@ -27,6 +27,8 @@ export const SIDEBAR_OPACITY = { min: 0, max: 1, default: 0.85 };
 /** The column wash behind the text, so a busy backdrop or full-screen image stays readable. */
 export const VEIL = { min: 0, max: 0.8, default: 0.45 };
 export const BLUR = { min: 1, max: 64, default: 24 };
+/** Edge-to-edge sidebar: px between the window's top edge and the sidebar's list. */
+export const SIDEBAR_TOP = { min: 0, max: 60, default: 24 };
 
 const ranged = (range: { min: number; max: number; default: number }) =>
   z.number().transform((v) => Math.min(range.max, Math.max(range.min, v))).default(range.default);
@@ -54,6 +56,7 @@ export const glassSchema = z.object({
   // Desktop app: run the sidebar to the window's top, leading and bottom edges
   // (a macOS source list) instead of BB's inset card with a gap around it.
   sidebarEdge: z.boolean().default(true),
+  sidebarTop: ranged(SIDEBAR_TOP),
   blur: ranged(BLUR),
   // MonoCode's "main pane glass": the workspace at 40% over the window.
   body: z.boolean().default(true),
