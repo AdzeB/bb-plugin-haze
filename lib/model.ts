@@ -51,6 +51,28 @@ export const glassSchema = z.object({
 });
 export type Glass = z.infer<typeof glassSchema>;
 
+/**
+ * A live, drawn backdrop behind the whole window, like Claude Code's
+ * `$.theme.set({ backdrop: { scene } })`. While a scene is on it replaces the
+ * image background. Scene drawing lives in lib/scenes (browser only); these
+ * are just the ids the server accepts.
+ */
+export const SCENES = ["none", "cloud-drift"] as const;
+export type SceneId = (typeof SCENES)[number];
+/** The column wash behind the text, so a busy scene stays readable. */
+export const VEIL = { min: 0, max: 0.8, default: 0.45 };
+
+export const backdropSchema = z.object({
+  // An id from a newer Haze falls back to no backdrop instead of failing.
+  scene: z.enum(SCENES).catch("none").default("none"),
+  // "scene": switch BB to the scene's light or dark scheme while it shows
+  // (Claude Code's overrideColorScheme); "app": keep BB's own theme.
+  colorScheme: z.enum(["scene", "app"]).default("scene"),
+  veil: ranged(VEIL),
+  motion: z.boolean().default(true),
+});
+export type Backdrop = z.infer<typeof backdropSchema>;
+
 export const backgroundSchema = z.object({
   settings: backgroundSettingsSchema,
   imageUrl: z.string().nullable(),
@@ -62,6 +84,7 @@ export const snapshotSchema = z.object({
   // Project overrides, by project id. Only ones with an image apply.
   projects: z.record(z.string(), backgroundSchema),
   glass: glassSchema,
+  backdrop: backdropSchema,
 });
 export type Snapshot = z.infer<typeof snapshotSchema>;
 

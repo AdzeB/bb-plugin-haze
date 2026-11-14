@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-haze",
-  "version": "0.2.1",
-  "description": "MonoCode-style conversation background: your image as a soft haze at the top of every thread that dissolves before the text.",
+  "version": "0.3.0",
+  "description": "MonoCode-style conversation background and live full-window backdrops (Cloud Drift) for BB.",
   "author": "AdzeB (https://github.com/AdzeB)",
   "license": "MIT",
   "repository": {
@@ -21,7 +21,9 @@
     "glass",
     "dither",
     "halftone",
-    "ascii"
+    "ascii",
+    "backdrop",
+    "animated"
   ],
   "type": "module",
   "engines": {
@@ -30,7 +32,7 @@
   },
   "bb": {
     "name": "Haze",
-    "description": "Puts your own image behind every BB conversation as a soft haze, with optional window-wide glass, six effects and per-project backgrounds.",
+    "description": "Puts a live scene (Cloud Drift) or your own image behind every BB conversation, with optional window-wide glass, six effects and per-project backgrounds.",
     "branding": {
       "icon": "Image"
     },
