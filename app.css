@@ -498,6 +498,32 @@ html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"
 }
 
 /*
+ * New thread's own fills: the composer's band and the sticky "Recent" heading
+ * are solid theme colour (on a phone they span the screen). Frost both, so
+ * the scene shows through and the list still blurs away under them.
+ */
+html[data-haze-backdrop] #root-compose-main-panel [class~="bg-background"]:has([data-promptbox]):not([data-promptbox]),
+html[data-haze-backdrop] #root-compose-main-panel [class~="sticky"][class~="bg-background"] {
+  background: color-mix(in oklab, var(--background) 55%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/*
+ * Phones and narrow windows. BB keeps the sidebar parked underneath the
+ * conversation and slides the conversation aside to reveal it, so a clear
+ * conversation pane showed the sidebar's list straight through the chat.
+ * While the drawer is closed, take the sidebar out of view; the delay lets
+ * the conversation slide back over it first (BB animates for 220ms).
+ */
+@media (max-width: 767px) {
+  html:is([data-haze-backdrop], [data-haze-glass="body"]) [data-sidebar="panel"][data-state="closed"] {
+    visibility: hidden;
+    transition: visibility 0s linear 240ms;
+  }
+}
+
+/*
  * Reduce transparency (macOS Accessibility, and other systems): the HIG asks
  * for solid surfaces, so the sidebar and main pane glass go opaque and stop
  * blurring. The scene still shows in the conversation, where the veil is.
@@ -511,6 +537,15 @@ html[data-haze-backdrop][data-haze-reach="everywhere"] main[data-sidebar="inset"
   html[data-haze-glass="body"] main[data-sidebar="inset"]:not(.bg-transparent),
   html[data-haze-glass="body"] main[data-sidebar="inset"]::before {
     background: var(--background);
+  }
+}
+
+/* Settings rows: on a phone the label and its hint stack above the control. */
+@media (max-width: 640px) {
+  .haze-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
   }
 }
 
