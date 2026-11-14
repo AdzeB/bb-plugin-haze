@@ -9,12 +9,113 @@ import type { Scheme } from "./scenes/types";
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 
+type SceneProps = {
+  scene: SceneDefinition;
+  scheme: Scheme;
+  animate: boolean;
+  scale?: number;
+  seed?: number;
+  className?: string;
+  style?: CSSProperties;
+  reveal?: boolean;
+  onRevealed?: () => void;
+};
+
+/** SVG images isolate the artwork's CSS from BB and from other scene previews. */
+export function SceneView({ scene, ...props }: SceneProps) {
+  return scene.kind === "svg"
+    ? <SvgScene scene={scene} {...props} />
+    : <SceneCanvas scene={scene} {...props} />;
+}
+
+const svgSources = new Map<string, Promise<{ animated: string; still: string }>>();
+
+export function stillSvg(source: string): string {
+  const doc = new DOMParser().parseFromString(source, "image/svg+xml");
+  // Use the author's resting composition and remove SMIL motion as well as CSS motion.
+  for (const style of Array.from(doc.querySelectorAll("style"))) {
+    style.textContent = style.textContent?.replace(/@media\s*\(prefers-reduced-motion:\s*reduce\)/gi, "@media all") ?? "";
+  }
+  for (const element of Array.from(doc.querySelectorAll("animate, animateMotion, animateTransform, set, discard"))) element.remove();
+  const style = doc.createElementNS("http://www.w3.org/2000/svg", "style");
+  style.textContent = "* { animation: none !important; transition: none !important; }";
+  doc.documentElement.appendChild(style);
+  return new XMLSerializer().serializeToString(doc);
+}
+
+function svgSource(scene: Extract<SceneDefinition, { kind: "svg" }>) {
+  let pending = svgSources.get(scene.id);
+  if (!pending) {
+    if (svgSources.size >= 48) {
+      for (const id of svgSources.keys()) { svgSources.delete(id); break; }
+    }
+    pending = Promise.resolve().then(() => scene.source()).then((animated) => ({ animated, still: stillSvg(animated) }));
+    svgSources.set(scene.id, pending);
+    // A transient fetch failure may be retried when the scene enters view again.
+    void pending.catch(() => svgSources.delete(scene.id));
+  }
+  return pending;
+}
+
+function SvgScene({
+  scene, animate, className, style, reveal, onRevealed,
+}: Omit<SceneProps, "scene"> & { scene: Extract<SceneDefinition, { kind: "svg" }> }) {
+  const ref = useRef<HTMLImageElement>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const image = ref.current;
+    if (!image) return;
+    const reduced = window.matchMedia(REDUCED_MOTION);
+    const urls = new Map<boolean, string>();
+    let visible = false;
+    let disposed = false;
+    let revision = 0;
+    setFailed(false);
+    const update = async () => {
+      // Build only the artwork that has entered view, rather than every card at mount.
+      if (!visible && urls.size === 0) return;
+      const current = ++revision;
+      const moving = animate && visible && !document.hidden && !reduced.matches;
+      let url = urls.get(moving);
+      if (!url) {
+        const sources = await svgSource(scene);
+        if (disposed || current !== revision) return;
+        url = URL.createObjectURL(new Blob([moving ? sources.animated : sources.still], { type: "image/svg+xml" }));
+        urls.set(moving, url);
+      }
+      if (image.src !== url) image.src = url;
+      setFailed(false);
+    };
+    const refresh = () => {
+      void update().catch(() => { if (!disposed) setFailed(true); });
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? false;
+      refresh();
+    });
+    observer.observe(image);
+    reduced.addEventListener("change", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      disposed = true;
+      observer.disconnect();
+      reduced.removeEventListener("change", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      image.removeAttribute("src");
+      for (const url of urls.values()) URL.revokeObjectURL(url);
+    };
+  }, [scene, animate]);
+  return <img ref={ref} alt={failed ? "Backdrop unavailable" : ""} aria-hidden="true" draggable={false} className={className}
+    onError={() => setFailed(true)} style={{ objectFit: "cover", ...style }}
+    data-reveal={reveal || undefined} onAnimationEnd={onRevealed} />;
+}
+
 /**
  * Draws `scene` to fill its canvas. `scale` < 1 draws a smaller copy of the
  * full-size scene (settings thumbnails). Stops drawing while the window is
  * hidden, and draws one still frame when motion is off or reduced.
  */
-export function SceneCanvas({
+function SceneCanvas({
   scene,
   scheme,
   animate,
@@ -25,7 +126,7 @@ export function SceneCanvas({
   reveal,
   onRevealed,
 }: {
-  scene: SceneDefinition;
+  scene: Extract<SceneDefinition, { kind: "canvas" }>;
   scheme: Scheme;
   animate: boolean;
   scale?: number;
@@ -142,7 +243,7 @@ export function BackdropLayer({
   return createPortal(
     <div className="haze-backdrop" aria-hidden="true">
       {layers.map((layer) => (
-        <SceneCanvas
+        <SceneView
           key={layer.key}
           className="haze-backdrop-layer"
           scene={layer.scene}

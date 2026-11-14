@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-haze",
-  "version": "0.6.1",
-  "description": "MonoCode-style conversation background and live full-window backdrops (Cloud Drift) for BB.",
+  "version": "0.6.2",
+  "description": "Live animated scenes, a custom SVG backdrop editor, image backgrounds and window glass for BB.",
   "author": "AdzeB (https://github.com/AdzeB)",
   "license": "MIT",
   "repository": {
@@ -32,7 +32,7 @@
   },
   "bb": {
     "name": "Haze",
-    "description": "Puts a live scene (Cloud Drift) or your own image behind every BB conversation, with optional window-wide glass, six effects and per-project backgrounds.",
+    "description": "Live scenes including Honu Lagoon, your own SVG backdrops, image effects and window glass.",
     "branding": {
       "icon": "Image"
     },
@@ -41,10 +41,12 @@
   },
   "scripts": {
     "build": "bb plugin build .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.3.0",
+    "@xmldom/xmldom": "0.9.12",
     "zod": "^4.6.5"
   },
   "devDependencies": {

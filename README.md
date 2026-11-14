@@ -25,18 +25,35 @@ Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
 - **Backdrop:** a live scene drawn behind the whole window, the BB version of a
   Claude Code mod's [backdrop](https://code.claude.com/docs/en/plugins/mods/interface#put-a-backdrop-behind-the-conversation).
   It fills the conversation from the header to the bottom edge, under the
-  composer too, and replaces the chat background while it is on. The first
-  scene is **Cloud Drift**: ASCII cumulus clouds drifting across a bright sky
+  composer too, and replaces the chat background while it is on. The
+  original scene is **Cloud Drift**: ASCII cumulus clouds drifting across a bright sky
   with flocks of birds by day, or a starry night under an ASCII crescent moon.
-  **Mode** picks *Light* or *Dark* (drawing that version and holding BB in the
-  same scheme while it shows, like Claude Code's `overrideColorScheme`) or
-  *Match BB* (follow BB's theme). **Show on** keeps a backdrop (or a
+  The collection also includes **20 scenes from Anthropic's theme-examples**:
+  Honu Lagoon, Koi Mosaic, Halftone Dawn/Dusk, Plotter Tide (day/night), Dither
+  Dunes (day/night), Paper Garden (paper/kraft), Night Reef, Snow Pines,
+  Braille Stars, Block Clouds, Vector Range, Departure Board, Blueprint,
+  Deep Water, Aurora and Ember. Pick one in the scene gallery or the command
+  palette. Each starts in its intended light or dark mode.
+  **Mode** picks *Light*, *Dark*, or *Match BB*. Light and Dark hold BB in
+  that scheme while the scene shows. Match BB follows BB's theme. Cloud Drift has day/night artwork; paired
+  scenes switch to their matching artwork. Unpaired scenes keep their artwork
+  while BB's colors change. **Show on** keeps a backdrop (or a
   full-screen image) to *Conversations* (New thread and threads; Settings and
   other pages keep BB's own look) or shows it *Everywhere*, with a stronger
   wash behind dense pages. **Reading veil** (0–80%, default 45%) washes
   the reading column so text stays legible; **Motion** off holds a still frame.
-  The command palette has *Haze: Cloud Drift backdrop*, *Haze: Switch the
-  backdrop between day and night* and *Haze: Turn the backdrop off*.
+  The command palette has a command for each built-in scene,
+  *Haze: Switch the backdrop between day and night* for scenes with both
+  versions, and *Haze: Turn the backdrop off*.
+- **Create your own backdrop:** open the editor below the scene gallery. Start
+  with the animated template, upload an `.svg` file, or paste your artwork.
+  Enter a name, choose Light or Dark, then click **Preview backdrop** and
+  **Save backdrop**. Saved scenes appear in the gallery and remain after a
+  restart. Select a custom scene to download its SVG or remove it. Each SVG
+  can be up to 1 MiB; you can keep 24 custom scenes. Use self-contained SVGs
+  with embedded images and fonts. CSS and SVG animations work, and both stop
+  when Motion is off or the system requests reduced motion. Scripts, embedded
+  HTML, and links to external assets are not supported.
 - **Chat background:** image, **Effect** (None, Dither, ASCII, Halftone,
   Scanlines, Haze), **Fill** (*Top haze*, MonoCode's fade at the top of the
   pane, or *Full screen*, the image behind the whole window from the header
@@ -54,7 +71,7 @@ Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
   on, the sidebar stays solid.
 - **Project backgrounds:** a project can have its own image and settings. Panes
   in the focused project use it; other projects use the chat background.
-- **Reset to defaults.**
+- **Reset to defaults.** Custom backdrops and project backgrounds stay.
 
 Turn Aura off while Haze is on (`bb plugin disable aura`). Both plugins draw on the same panels.
 
@@ -63,12 +80,14 @@ Turn Aura off while Haze is on (`bb plugin disable aura`). Both plugins draw on 
 - `app.tsx` mounts an app overlay that writes the backdrop or the focused
   project's background to `<html>` (`data-haze-backdrop`, `data-haze`,
   `data-haze-glass` and CSS variables), and renders the settings page.
-- `lib/backdrop.tsx` runs a scene on a canvas fixed behind all of BB: sizing,
+- `lib/backdrop.tsx` runs a scene on a canvas or an isolated SVG image behind all of BB: sizing,
   a 30 fps loop that pauses while the window is hidden, a circular reveal when
   you switch scenes, and the colour-scheme override (it holds BB's `dark`
   class and restores what BB last asked for). Scenes live in `lib/scenes/`; a
-  scene is a `SceneDefinition` whose instance only resizes and draws. Add one
-  there and its id to `SCENES` in `lib/model.ts`.
+  scene is a `SceneDefinition` with a canvas instance or an SVG builder. SVG
+  previews are still and built when they enter view; artwork CSS stays inside
+  its image document. The shared metadata in `lib/scene-catalog.ts` supplies
+  the SVG ids accepted by the server.
 - `lib/effects.ts` ports MonoCode's pixel effects to a Web Worker built from
   one function, cached per image, effect and theme.
 - `app.css` draws with `::before`/`::after` on BB's `#root-compose-main-panel`
@@ -109,3 +128,8 @@ The sample wallpaper and the screenshots' background is
 [Scenic Valley in the Afternoon (SD1.5)](https://commons.wikimedia.org/wiki/File:Scenic_Valley_in_the_Afternoon_(SD1.5).jpg)
 by VulcanSphere on Wikimedia Commons, released into the public domain; it is
 resized here. The screenshots come from a fresh BB profile with a sample thread.
+
+The 20 additional scenes are adapted from Anthropic's
+[theme-examples](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/theme-examples)
+under Apache License 2.0. Their unmodified builders, license and pinned source
+revision are in [`lib/scenes/theme-examples/`](lib/scenes/theme-examples/).

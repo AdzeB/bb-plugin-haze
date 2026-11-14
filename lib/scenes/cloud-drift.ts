@@ -372,6 +372,7 @@ function create(seed: number, scheme: Scheme): SceneInstance {
 }
 
 export const cloudDrift: SceneDefinition = {
+  kind: "canvas",
   id: "cloud-drift",
   label: "Cloud Drift",
   description: {

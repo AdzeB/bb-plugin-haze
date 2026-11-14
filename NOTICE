@@ -28,3 +28,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Theme examples artwork
+---------------------
+Haze includes twenty SVG scenes from Anthropic’s theme-examples plugin:
+https://github.com/anthropics/claude-plugins-official/tree/b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6/plugins/theme-examples
+The scene builders are unmodified. Haze adapts their metadata and rendering.
+These files are licensed under Apache License 2.0; the full license and source
+provenance are in lib/scenes/theme-examples/. The rest of Haze remains MIT.

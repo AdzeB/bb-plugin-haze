@@ -27,10 +27,12 @@ import {
   type Effect,
   type Glass,
   type Snapshot,
+  type SceneId,
 } from "./lib/model";
 import { disposeEffects, needsWorker, renderEffect } from "./lib/effects";
-import { BackdropLayer, ImageBackdrop, SceneCanvas, useColorSchemeOverride } from "./lib/backdrop";
-import { SCENE_LIST, sceneById, type SceneDefinition } from "./lib/scenes";
+import { BackdropLayer, ImageBackdrop, SceneView, useColorSchemeOverride } from "./lib/backdrop";
+import { SCENE_LIST, customSceneDefinition, sceneById, type SceneDefinition } from "./lib/scenes";
+import { CustomSceneEditor } from "./lib/custom-scene-editor";
 import type { Scheme } from "./lib/scenes/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -175,7 +177,7 @@ function unpaintBackdrop(): void {
 
 /** Palette commands ask the mounted HazeRoot to save, since only it holds an RPC client. */
 const SET_BACKDROP = "haze:set-backdrop";
-let shownScene: string = "none";
+let shownScene: SceneId = "none";
 let shownScheme: Scheme = "light";
 
 /**
@@ -218,13 +220,15 @@ function HazeRoot() {
   usePageMark();
   const { projectId } = useBbContext();
   const background = snapshot ? activeBackground(snapshot, projectId) : null;
-  const scene = sceneById(snapshot?.backdrop.scene);
-  const image = useEffectImage(scene ? null : (background?.imageUrl ?? null), background?.settings.effect ?? "none");
-  const fullImage = !scene && image && background?.settings.fill === "full" ? image : null;
-  // Light or Dark draws that version and holds BB in it; Match BB follows BB's theme.
+  const chosenScene = sceneById(snapshot?.backdrop.scene, snapshot?.customScenes);
   const mode = snapshot?.backdrop.colorScheme ?? "auto";
   const bbLight = useLightTheme();
   const scheme: Scheme = mode === "auto" ? (bbLight ? "light" : "dark") : mode;
+  const scene = mode === "auto" && chosenScene?.kind === "svg" && chosenScene.twin && chosenScene.scheme !== scheme
+    ? sceneById(chosenScene.twin) : chosenScene;
+  const image = useEffectImage(scene ? null : (background?.imageUrl ?? null), background?.settings.effect ?? "none");
+  const fullImage = !scene && image && background?.settings.fill === "full" ? image : null;
+  // Light or Dark draws that version and holds BB in it; Match BB follows BB's theme.
   useColorSchemeOverride(scene && mode !== "auto" ? mode : null);
   useEffect(() => {
     if (!snapshot || !background) return;
@@ -669,7 +673,7 @@ function SceneCard({
         style={{ background: scene?.base[scheme] ?? "var(--background)" }}
       >
         {scene ? (
-          <SceneCanvas scene={scene} scheme={scheme} animate scale={0.3} className="absolute inset-0 size-full" />
+          <SceneView scene={scene} scheme={scheme} animate={false} scale={0.3} className="absolute inset-0 size-full" />
         ) : (
           <span className="absolute inset-0 grid place-items-center text-muted-foreground">Off</span>
         )}
@@ -682,27 +686,35 @@ function SceneCard({
   );
 }
 
-function BackdropEditor({ backdrop, busy, rpc, run }: { backdrop: Backdrop; busy: boolean; rpc: Rpc; run: (call: Promise<Snapshot>) => void }) {
+function BackdropEditor({ backdrop, customScenes, busy, rpc, run }: { backdrop: Backdrop; customScenes: Snapshot["customScenes"]; busy: boolean; rpc: Rpc; run: (call: Promise<Snapshot>) => void }) {
   const [veil, setVeil] = useState<number | null>(null);
   useEffect(() => setVeil(null), [backdrop]);
   const save = (patch: Partial<Backdrop>) => run(rpc.call("setBackdrop", patch));
-  const scene = sceneById(backdrop.scene);
+  const scene = sceneById(backdrop.scene, customScenes);
+  const custom = customScenes.find((option) => option.id === backdrop.scene);
   const bbLight = useLightTheme();
   const scheme: Scheme = backdrop.colorScheme === "auto" ? (bbLight ? "light" : "dark") : backdrop.colorScheme;
   return (
     <fieldset disabled={busy} className="flex flex-col gap-3 border-0 p-0 disabled:opacity-60">
       <div role="radiogroup" aria-label="Backdrop scene" className="flex flex-wrap gap-2">
         <SceneCard scene={null} scheme={scheme} selected={!scene} onSelect={() => save({ scene: "none" })} />
-        {SCENE_LIST.map((option) => (
+        {[...SCENE_LIST, ...customScenes.map(customSceneDefinition)].map((option) => (
           <SceneCard
             key={option.id}
             scheme={scheme}
             scene={option}
             selected={scene?.id === option.id}
-            onSelect={() => save({ scene: option.id })}
+            onSelect={() => save({ scene: option.id, ...(option.kind === "svg" && { colorScheme: option.scheme }) })}
           />
         ))}
       </div>
+      {custom && <div className="flex items-center gap-3 text-xs">
+        <a className="underline" download={`${custom.name}.svg`} href={`/api/v1/plugins/haze/http/custom-scene?id=${encodeURIComponent(custom.id)}`}>Download SVG</a>
+        <Button size="sm" variant="ghost" onClick={() => run(rpc.call("deleteScene", { id: custom.id }))}>Remove custom backdrop</Button>
+      </div>}
+      <CustomSceneEditor motion={backdrop.motion} onSave={(input) => rpc.call("createScene", input).then((snapshot) => {
+        run(Promise.resolve(snapshot));
+      })} />
       <Segmented
         label="Show on"
         hint={
@@ -718,13 +730,19 @@ function BackdropEditor({ backdrop, busy, rpc, run }: { backdrop: Backdrop; busy
         <Segmented
           label="Mode"
           hint={
-            backdrop.colorScheme === "auto"
+            scene?.kind === "svg"
+              ? `Changes BB's appearance. This artwork is made for ${scene.scheme} mode.${scene.twin ? " Light and Dark select its matching artwork." : ""}`
+              : backdrop.colorScheme === "auto"
               ? "Follows BB's theme: the day version in light mode, the night version in dark."
               : `Draws the ${backdrop.colorScheme === "light" ? "day" : "night"} version and switches BB to ${backdrop.colorScheme} mode while it shows.`
           }
           value={backdrop.colorScheme}
           options={[["light", "Light"], ["dark", "Dark"], ["auto", "Match BB"]]}
-          onChange={(colorScheme) => save({ colorScheme })}
+          onChange={(colorScheme) => save({
+            colorScheme,
+            ...(scene?.kind === "svg" && scene.twin && colorScheme !== "auto" && colorScheme !== scene.scheme
+              ? { scene: scene.twin } : {}),
+          })}
         />
         <Slider
           label="Reading veil"
@@ -787,7 +805,7 @@ function HazeSettingsPage() {
         title="Backdrop"
         description="A live scene behind the whole window, from the top of the conversation to under the composer. While one is on it replaces the chat background."
       >
-        <BackdropEditor backdrop={snapshot.backdrop} busy={busy} rpc={rpc} run={run} />
+        <BackdropEditor backdrop={snapshot.backdrop} customScenes={snapshot.customScenes} busy={busy} rpc={rpc} run={run} />
       </Section>
 
       <Section title="Chat background" description="Your image behind New thread and every conversation: a haze at the top that fades before the text, or full screen.">
@@ -829,7 +847,7 @@ function HazeSettingsPage() {
         <Button size="sm" variant="outline" disabled={busy} onClick={() => run(rpc.call("reset", null))}>
           Reset to defaults
         </Button>
-        <p className="mt-1 text-xs text-muted-foreground">Clears the backdrop, the chat background image and window settings. Project backgrounds stay.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Clears the backdrop, the chat background image and window settings. Project backgrounds and custom backdrops stay.</p>
       </div>
     </div>
   );
@@ -845,14 +863,22 @@ export default definePluginApp((app) => {
       id: `backdrop-${scene.id}`,
       title: `Haze: ${scene.label} backdrop`,
       isAvailable: () => shownScene !== scene.id,
-      run: () => setBackdrop({ scene: scene.id }),
+      run: () => setBackdrop({ scene: scene.id, ...(scene.kind === "svg" && { colorScheme: scene.scheme }) }),
     });
   }
   app.commands.register({
     id: "backdrop-day-night",
     title: "Haze: Switch the backdrop between day and night",
-    isAvailable: () => shownScene !== "none",
-    run: () => setBackdrop({ colorScheme: shownScheme === "light" ? "dark" : "light" }),
+    isAvailable: () => {
+      const scene = sceneById(shownScene);
+      return scene?.kind === "canvas" || Boolean(scene?.twin);
+    },
+    run: () => {
+      const scene = sceneById(shownScene);
+      setBackdrop({ colorScheme: shownScheme === "light" ? "dark" : "light",
+        ...(scene?.kind === "svg" && scene.twin ? { scene: scene.twin } : {}),
+      });
+    },
   });
   app.commands.register({
     id: "backdrop-off",

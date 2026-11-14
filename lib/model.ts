@@ -1,6 +1,7 @@
 // Settings shared by the server and the app. Names, ranges and defaults are
 // MonoCode's (src/features/settings/model/appearance.ts).
 import { z } from "zod";
+import { SVG_SCENES } from "./scene-catalog";
 
 export const EFFECTS = ["none", "dither", "ascii", "halftone", "scanlines", "gradient-blur"] as const;
 export type Effect = (typeof EFFECTS)[number];
@@ -69,12 +70,21 @@ export type Glass = z.infer<typeof glassSchema>;
  * image background. Scene drawing lives in lib/scenes (browser only); these
  * are just the ids the server accepts.
  */
-export const SCENES = ["none", "cloud-drift"] as const;
-export type SceneId = (typeof SCENES)[number];
+export const SCENES = ["none", "cloud-drift", ...SVG_SCENES.map((scene) => scene.id)] as const;
+export const customSceneIdSchema = z.string().regex(/^custom-[a-f0-9]{24}$/).brand<"CustomSceneId">();
+const sceneIdSchema = z.union([z.enum(SCENES), customSceneIdSchema]);
+export type SceneId = z.infer<typeof sceneIdSchema>;
+
+export const customSceneSchema = z.object({
+  id: customSceneIdSchema,
+  name: z.string().trim().min(1).max(80),
+  scheme: z.enum(["light", "dark"]),
+});
+export type CustomScene = z.infer<typeof customSceneSchema>;
 
 export const backdropSchema = z.object({
   // An id from a newer Haze falls back to no backdrop instead of failing.
-  scene: z.enum(SCENES).catch("none").default("none"),
+  scene: sceneIdSchema.catch("none").default("none"),
   // "light" / "dark": draw that version of the scene and hold BB in the same
   // scheme while it shows (Claude Code's overrideColorScheme). "auto": follow
   // BB's theme and draw the matching version. 0.3 stored "scene" (the scene's
@@ -90,6 +100,15 @@ export const backdropSchema = z.object({
 });
 export type Backdrop = z.infer<typeof backdropSchema>;
 
+// Persisted settings need defaults; partial edits must leave omitted fields alone.
+export const backdropPatchSchema = z.object({
+  scene: backdropSchema.shape.scene.removeDefault().removeCatch(),
+  colorScheme: backdropSchema.shape.colorScheme.removeDefault(),
+  veil: backdropSchema.shape.veil.removeDefault(),
+  motion: backdropSchema.shape.motion.removeDefault(),
+  reach: backdropSchema.shape.reach.removeDefault(),
+}).partial().strict();
+
 export const backgroundSchema = z.object({
   settings: backgroundSettingsSchema,
   imageUrl: z.string().nullable(),
@@ -102,6 +121,7 @@ export const snapshotSchema = z.object({
   projects: z.record(z.string(), backgroundSchema),
   glass: glassSchema,
   backdrop: backdropSchema,
+  customScenes: z.array(customSceneSchema).default([]),
 });
 export type Snapshot = z.infer<typeof snapshotSchema>;
 

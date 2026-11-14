@@ -5,12 +5,16 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
   backdropSchema,
+  backdropPatchSchema,
+  customSceneIdSchema,
+  customSceneSchema,
   backgroundSettingsSchema,
   glassSchema,
   snapshotSchema,
   type Background,
   type Snapshot,
 } from "./lib/model";
+import { MAX_SVG_BYTES, parseCustomSvg } from "./lib/custom-svg";
 
 export type { Snapshot } from "./lib/model";
 
@@ -33,7 +37,12 @@ export const rpcContract = defineRpcContract({
     output: snapshotSchema,
   },
   setGlass: { input: glassSchema.partial().strict(), output: snapshotSchema },
-  setBackdrop: { input: backdropSchema.partial().strict(), output: snapshotSchema },
+  setBackdrop: { input: backdropPatchSchema, output: snapshotSchema },
+  createScene: {
+    input: customSceneSchema.omit({ id: true }).extend({ svg: z.string().min(1).max(MAX_SVG_BYTES) }).strict(),
+    output: snapshotSchema,
+  },
+  deleteScene: { input: z.object({ id: customSceneIdSchema }).strict(), output: snapshotSchema },
   // MonoCode's "Reset appearance": global settings, glass, backdrop and image back to defaults.
   reset: { input: z.null(), output: snapshotSchema },
 });
@@ -51,6 +60,7 @@ export default function plugin(bb: BbPluginApi) {
     "INSERT INTO bg (target, settings, mime, version, bytes) SELECT 'global', settings, mime, version, bytes FROM haze",
     "DROP TABLE haze",
     "CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+    "CREATE TABLE custom_scene (id TEXT PRIMARY KEY, name TEXT NOT NULL, scheme TEXT NOT NULL, svg TEXT NOT NULL)",
   ]);
   db.prepare("INSERT OR IGNORE INTO bg (target, settings) VALUES ('global', '{}')").run();
 
@@ -80,7 +90,8 @@ export default function plugin(bb: BbPluginApi) {
       if (row.target === GLOBAL) global = toBackground(row);
       else projects[row.target] = toBackground(row);
     }
-    return { global: global!, projects, glass: readGlass(), backdrop: readBackdrop() };
+    const customScenes = z.array(customSceneSchema).parse(db.prepare("SELECT id, name, scheme FROM custom_scene ORDER BY rowid").all());
+    return { global: global!, projects, glass: readGlass(), backdrop: readBackdrop(), customScenes };
   }
   function changed(): Snapshot {
     bb.realtime.publish(CHANGED, null);
@@ -138,7 +149,25 @@ export default function plugin(bb: BbPluginApi) {
       return changed();
     },
     setBackdrop: (patch) => {
+      if (patch.scene?.startsWith("custom-") && !db.prepare("SELECT 1 FROM custom_scene WHERE id = ?").get(patch.scene)) {
+        throw new Error("That custom backdrop no longer exists.");
+      }
       writeKv("backdrop", backdropSchema.parse({ ...readBackdrop(), ...patch }));
+      return changed();
+    },
+    createScene: ({ name, scheme, svg }) => {
+      const count = z.object({ n: z.number() }).parse(db.prepare("SELECT COUNT(*) AS n FROM custom_scene").get());
+      if (count.n >= 24) throw new Error("You can save up to 24 custom backdrops. Remove one to make room.");
+      const artwork = parseCustomSvg(svg);
+      const id = customSceneIdSchema.parse(`custom-${randomBytes(12).toString("hex")}`);
+      db.prepare("INSERT INTO custom_scene (id, name, scheme, svg) VALUES (?, ?, ?, ?)").run(id, name, scheme, artwork);
+      writeKv("backdrop", backdropSchema.parse({ ...readBackdrop(), scene: id, colorScheme: scheme }));
+      return changed();
+    },
+    deleteScene: ({ id }) => {
+      db.prepare("DELETE FROM custom_scene WHERE id = ?").run(id);
+      const backdrop = readBackdrop();
+      if (backdrop.scene === id) writeKv("backdrop", { ...backdrop, scene: "none" });
       return changed();
     },
     reset: () => {
@@ -146,6 +175,19 @@ export default function plugin(bb: BbPluginApi) {
       db.prepare("DELETE FROM kv WHERE key IN ('glass', 'backdrop')").run();
       return changed();
     },
+  });
+
+  bb.http.route("GET", "/custom-scene", (c) => {
+    const id = customSceneIdSchema.safeParse(c.req.query("id"));
+    if (!id.success) return c.notFound();
+    const row = z.object({ svg: z.string() }).optional().parse(db.prepare("SELECT svg FROM custom_scene WHERE id = ?").get(id.data));
+    if (!row) return c.notFound();
+    return new Response(row.svg, { headers: {
+      "Content-Type": "image/svg+xml; charset=utf-8",
+      "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, no-cache",
+    } });
   });
 
   bb.http.route("GET", "/image", (c) => {
