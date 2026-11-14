@@ -28,7 +28,7 @@ import {
   type Snapshot,
 } from "./lib/model";
 import { disposeEffects, needsWorker, renderEffect } from "./lib/effects";
-import { BackdropLayer, SceneCanvas, useColorSchemeOverride } from "./lib/backdrop";
+import { BackdropLayer, ImageBackdrop, SceneCanvas, useColorSchemeOverride } from "./lib/backdrop";
 import { SCENE_LIST, sceneById, type SceneDefinition } from "./lib/scenes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -99,6 +99,7 @@ function backgroundStyle(settings: BackgroundSettings, image: string) {
       "--haze-image": `url("${image}")`,
       "--haze-empty-opacity": String(settings.emptyOpacity),
       "--haze-session-opacity": String(settings.scope === "empty" ? 0 : settings.sessionOpacity),
+      "--haze-veil": String(settings.veil),
     },
   };
 }
@@ -107,6 +108,7 @@ const VARS = [
   "--haze-image",
   "--haze-empty-opacity",
   "--haze-session-opacity",
+  "--haze-veil",
   "--haze-window-image",
   "--haze-sidebar-opacity",
   "--haze-glass-blur",
@@ -138,13 +140,16 @@ function unpaint(): void {
 
 const BACKDROP_VARS = ["--haze-backdrop-base", "--haze-veil", "--haze-sidebar-opacity", "--haze-glass-blur"];
 
-/** A scene replaces the image background everywhere while it is on. */
-function paintBackdrop(scene: SceneDefinition, backdrop: Backdrop, glass: Glass): void {
+/**
+ * Something drawn behind the whole window: a scene (`id` is its id) or a
+ * full-screen image (`id` is "image"). It replaces the top haze everywhere.
+ */
+function paintBackdrop(id: string, base: string, veil: number, glass: Glass): void {
   unpaint();
   const root = document.documentElement;
-  root.dataset.hazeBackdrop = scene.id;
-  root.style.setProperty("--haze-backdrop-base", scene.base);
-  root.style.setProperty("--haze-veil", String(backdrop.veil));
+  root.dataset.hazeBackdrop = id;
+  root.style.setProperty("--haze-backdrop-base", base);
+  root.style.setProperty("--haze-veil", String(veil));
   root.style.setProperty("--haze-sidebar-opacity", String(glass.sidebarOpacity));
   root.style.setProperty("--haze-glass-blur", `${glass.blur}px`);
 }
@@ -167,13 +172,15 @@ function HazeRoot() {
   const background = snapshot ? activeBackground(snapshot, projectId) : null;
   const scene = sceneById(snapshot?.backdrop.scene);
   const image = useEffectImage(scene ? null : (background?.imageUrl ?? null), background?.settings.effect ?? "none");
+  const fullImage = !scene && image && background?.settings.fill === "full" ? image : null;
   useEffect(() => {
     if (!snapshot || !background) return;
     shownScene = scene?.id ?? "none";
-    if (scene) return paintBackdrop(scene, snapshot.backdrop, snapshot.glass);
+    if (scene) return paintBackdrop(scene.id, scene.base, snapshot.backdrop.veil, snapshot.glass);
+    if (fullImage) return paintBackdrop("image", "var(--background)", background.settings.veil, snapshot.glass);
     unpaintBackdrop();
     paint(background, image, snapshot.glass);
-  }, [snapshot, background, scene, image]);
+  }, [snapshot, background, scene, image, fullImage]);
   useColorSchemeOverride(scene && snapshot?.backdrop.colorScheme === "scene" ? scene.colorScheme : null);
   // Reveal a scene the user picks, not the one already on when the window opens.
   const loaded = useRef(false);
@@ -195,8 +202,12 @@ function HazeRoot() {
     },
     [],
   );
-  if (!scene || !snapshot) return null;
-  return <BackdropLayer scene={scene} animate={snapshot.backdrop.motion} reveal={loaded.current} />;
+  if (!snapshot) return null;
+  if (scene) return <BackdropLayer scene={scene} animate={snapshot.backdrop.motion} reveal={loaded.current} />;
+  if (fullImage && background) {
+    return <ImageBackdrop url={fullImage} haze={background.settings.effect === "gradient-blur"} />;
+  }
+  return null;
 }
 
 /** Downscale on the client so the stored image stays small. */
@@ -352,6 +363,7 @@ function Previews({ settings, imageUrl }: { settings: BackgroundSettings; imageU
     <div
       className="haze-preview flex gap-3"
       data-haze={style?.mode}
+      data-fill={settings.fill}
       style={style?.vars as CSSProperties | undefined}
     >
       <figure className="m-0 flex flex-1 flex-col gap-1.5">
@@ -467,13 +479,37 @@ function BackgroundEditor({
           onChange={(effect) => save({ effect })}
         />
         <Segmented
-          label="Show on"
-          value={settings.scope}
-          options={[["all", "All sessions"], ["empty", "Empty chats"]]}
-          onChange={(scope) => save({ scope })}
+          label="Fill"
+          hint={
+            settings.fill === "full"
+              ? "The image fills the whole window, under the header and the composer."
+              : "A haze at the top that fades out before the text."
+          }
+          value={settings.fill}
+          options={[["top", "Top haze"], ["full", "Full screen"]]}
+          onChange={(fill) => save({ fill })}
         />
-        <Slider label="Empty chat visibility" {...slide("emptyOpacity")} />
-        <Slider label="Session visibility" disabled={settings.scope === "empty"} {...slide("sessionOpacity")} />
+        {settings.fill === "full" ? (
+          <Slider
+            label="Reading veil"
+            value={settings.veil}
+            range={VEIL}
+            format={percent}
+            onInput={(veil) => setDraft({ ...settings, veil })}
+            onCommit={() => draft && save({ veil: draft.veil })}
+          />
+        ) : (
+          <>
+            <Segmented
+              label="Show on"
+              value={settings.scope}
+              options={[["all", "All sessions"], ["empty", "Empty chats"]]}
+              onChange={(scope) => save({ scope })}
+            />
+            <Slider label="Empty chat visibility" {...slide("emptyOpacity")} />
+            <Slider label="Session visibility" disabled={settings.scope === "empty"} {...slide("sessionOpacity")} />
+          </>
+        )}
       </fieldset>
     </div>
   );
@@ -645,7 +681,7 @@ function HazeSettingsPage() {
         <BackdropEditor backdrop={snapshot.backdrop} busy={busy} rpc={rpc} run={run} />
       </Section>
 
-      <Section title="Chat background" description="Your image at the top of New thread and every conversation, fading out before the text.">
+      <Section title="Chat background" description="Your image behind New thread and every conversation: a haze at the top that fades before the text, or full screen.">
         <BackgroundEditor target={GLOBAL} background={snapshot.global} fallback={snapshot.global.settings} {...editor} />
       </Section>
 

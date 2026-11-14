@@ -230,6 +230,32 @@ html[data-haze-backdrop] body {
   height: 100%;
   display: block;
 }
+/* Fill: Full screen. The chat background image, behind the whole window. */
+.haze-backdrop-image {
+  background: center / cover no-repeat;
+  animation: haze-fade-in 600ms var(--haze-ease) both;
+}
+/* The Haze effect, full screen: blurred, with its display lines. Overscan so the blur has no soft edge. */
+.haze-backdrop-image[data-effect="haze"] {
+  inset: -48px;
+  width: auto;
+  height: auto;
+  filter: blur(18px);
+}
+html[data-haze-backdrop="image"] .haze-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+html[data-haze-backdrop="image"] .haze-backdrop:has([data-effect="haze"])::after {
+  background: repeating-linear-gradient(to bottom, color-mix(in oklab, var(--background) 30%, transparent) 0 1px, transparent 1px 3px);
+}
+@keyframes haze-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* A newly picked scene opens in a circle from the composer, over the old one. */
 .haze-backdrop-layer[data-reveal] {
   animation: haze-reveal 1100ms cubic-bezier(0.65, 0, 0.35, 1) both;
@@ -249,6 +275,15 @@ html[data-haze-backdrop] body {
 }
 
 html[data-haze-backdrop] :is([data-sidebar="panel"], [data-sidebar="content"]) {
+  background: transparent;
+}
+/*
+ * BB's desktop app frames the window: the sidebar wrapper paints the frame
+ * colour (bg-sidebar plus a surface-recessed layer) across the whole window,
+ * which hides anything behind it. Clear it so the backdrop, or the window
+ * glass, shows through the frame and the panes. The browser has no frame.
+ */
+html:is([data-haze-backdrop], [data-haze-glass]) [class~="group/sidebar-wrapper"] {
   background: transparent;
 }
 html[data-haze-backdrop] [data-sidebar="sidebar"] {
@@ -321,4 +356,30 @@ html:is([data-haze-backdrop], [data-haze-glass="body"]) [data-scroll-footer] > .
 .haze-pane {
   overflow: hidden;
   background: var(--background);
+}
+/*
+ * Full screen preview: the whole image, with the reading veil down the middle.
+ * !important because the shared pane rules above carry an id's specificity.
+ */
+.haze-preview[data-haze][data-fill="full"] .haze-pane::before {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+  opacity: 1 !important;
+}
+.haze-preview[data-haze="haze"][data-fill="full"] .haze-pane::before {
+  filter: blur(4px) !important;
+}
+.haze-preview[data-haze][data-fill="full"] .haze-pane::after {
+  --haze-veil-color: color-mix(in oklab, var(--background) calc(var(--haze-veil, 0.45) * 100%), transparent);
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+  background: linear-gradient(to right, transparent, var(--haze-veil-color) 14%, var(--haze-veil-color) 86%, transparent) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+  opacity: 1 !important;
 }

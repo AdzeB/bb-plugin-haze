@@ -34,7 +34,9 @@ Open **Settings → Haze** (images are resized on the client to 2560 px WebP):
   stays legible; **Motion** off holds a still frame. The command palette has
   *Haze: Cloud Drift backdrop* and *Haze: Turn the backdrop off*.
 - **Chat background:** image, **Effect** (None, Dither, ASCII, Halftone,
-  Scanlines, Haze), **Show on** (all sessions or empty chats), and separate
+  Scanlines, Haze), **Fill** (*Top haze*, MonoCode's fade at the top of the
+  pane, or *Full screen*, the image behind the whole window from the header
+  to below the composer, with its own **Reading veil**), **Show on** (all sessions or empty chats), and separate
   visibility for empty chats and sessions (5–65%, default 24%). These are
   MonoCode's names, ranges and defaults.
 - **Window:** window glass, sidebar opacity (default 85%), blur radius (default
@@ -67,8 +69,9 @@ Turn Aura off while Haze is on (`bb plugin disable aura`). Both plugins draw on 
 
 The CSS depends on BB's DOM: those two panel ids, `[data-sidebar=…]`,
 `[data-page-scroll-viewport]`, `[data-scroll-attached]`, `[data-scroll-footer]`
-(and BB's fade strip above it), the thread header, and the `dark` class on
-`<html>`. Recheck them after a BB upgrade.
+(and BB's fade strip above it), the thread header, the `dark` class on
+`<html>`, and, in the desktop app, the framed `group/sidebar-wrapper` that
+paints the window frame. Recheck them after a BB upgrade.
 
 ## Install
 

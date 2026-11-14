@@ -24,6 +24,8 @@ export const EFFECT_DESCRIPTIONS: Record<Effect, string> = {
 
 export const OPACITY = { min: 0.05, max: 0.65, default: 0.24 };
 export const SIDEBAR_OPACITY = { min: 0.15, max: 1, default: 0.85 };
+/** The column wash behind the text, so a busy backdrop or full-screen image stays readable. */
+export const VEIL = { min: 0, max: 0.8, default: 0.45 };
 export const BLUR = { min: 1, max: 64, default: 24 };
 
 const ranged = (range: { min: number; max: number; default: number }) =>
@@ -38,6 +40,10 @@ export const backgroundSettingsSchema = z.object({
   scope: z.enum(["all", "empty"]).default("all"),
   emptyOpacity: ranged(OPACITY),
   sessionOpacity: ranged(OPACITY),
+  // "top": MonoCode's haze that fades out before the text. "full": the image
+  // fills the window behind every pane, edge to edge, like a backdrop scene.
+  fill: z.enum(["top", "full"]).default("top"),
+  veil: ranged(VEIL),
 });
 export type BackgroundSettings = z.infer<typeof backgroundSettingsSchema>;
 
@@ -59,8 +65,6 @@ export type Glass = z.infer<typeof glassSchema>;
  */
 export const SCENES = ["none", "cloud-drift"] as const;
 export type SceneId = (typeof SCENES)[number];
-/** The column wash behind the text, so a busy scene stays readable. */
-export const VEIL = { min: 0, max: 0.8, default: 0.45 };
 
 export const backdropSchema = z.object({
   // An id from a newer Haze falls back to no backdrop instead of failing.

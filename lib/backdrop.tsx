@@ -138,6 +138,24 @@ export function BackdropLayer({ scene, animate, reveal }: { scene: SceneDefiniti
 }
 
 /**
+ * A chat background image filling the window behind every pane (Fill: Full
+ * screen). `url` already carries the pixel effect; the Haze effect blurs it.
+ */
+export function ImageBackdrop({ url, haze }: { url: string; haze: boolean }) {
+  return createPortal(
+    <div className="haze-backdrop" aria-hidden="true">
+      <div
+        key={url}
+        className="haze-backdrop-layer haze-backdrop-image"
+        data-effect={haze ? "haze" : undefined}
+        style={{ backgroundImage: `url("${url}")` }}
+      />
+    </div>,
+    document.body,
+  );
+}
+
+/**
  * Holds BB in `scheme` while a scene that is painted for it shows, the way
  * Claude Code's overrideColorScheme does, and hands the theme back after.
  * BB marks dark mode with the `dark` class on <html>. Whenever BB sets it (a
